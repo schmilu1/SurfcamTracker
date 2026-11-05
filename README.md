@@ -41,7 +41,7 @@ Details, Bedienung, AT-Befehle und Messergebnisse: [firmware/rover/README.md](fi
 | Gerät | Komponenten |
 |---|---|
 | Rover | Dragino TrackerD: ESP32-PICO-D4, SX1276, Quectel L76K (Firmware `URANUS5`), LIS3DH, Li-Ion-Akku |
-| Gateway | Raspberry Pi 5, Waveshare SX1302 LoRaWAN Gateway HAT, ChirpStack v4 in Docker |
+| Gateway | Raspberry Pi 5, Waveshare SX1302 LoRaWAN Gateway HAT, `lora_pkt_fwd`, ChirpStack Gateway Bridge und Mosquitto in Docker (Konfiguration: [schmilu1/sx1302_hal_rpi5-master](https://github.com/schmilu1/sx1302_hal_rpi5-master), Ordner `surfcam/`) |
 
 ## Stand
 
