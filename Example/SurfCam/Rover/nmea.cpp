@@ -40,6 +40,8 @@ void NmeaParser::reset() {
   overflow_ = false;
   cur_ = GnssFix();
   out_ = GnssFix();
+  haveLastGga_ = false;
+  lastGgaTimeMs_ = kTimeUnknown;
 }
 
 uint8_t NmeaParser::checksum(const char* body) {
@@ -177,6 +179,21 @@ bool NmeaParser::beginEpoch(uint32_t timeMs) {
 bool NmeaParser::emit() {
   out_ = cur_;
   if (!out_.hasRmc) out_.valid = out_.fixQuality > 0;
+  if (out_.hasRmc && !out_.hasGga) {
+    stats_.rmcOnly++;
+    // GGA verloren: Werte des letzten GGA übernehmen, wenn er höchstens 2 s alt ist
+    if (haveLastGga_ && out_.timeMs != kTimeUnknown && lastGgaTimeMs_ != kTimeUnknown) {
+      const uint32_t day = 86400000UL;
+      const uint32_t age = (out_.timeMs + day - lastGgaTimeMs_) % day;
+      if (age <= 2000) {
+        out_.fixQuality = lastFixQuality_;
+        out_.sats = lastSats_;
+        out_.hdopX10 = lastHdopX10_;
+        out_.altDm = lastAltDm_;
+        out_.ggaCarried = true;
+      }
+    }
+  }
   stats_.epochs++;
   cur_ = GnssFix();
   return true;
@@ -222,6 +239,12 @@ bool NmeaParser::handleGga(char** f, int n) {
   cur_.sats = parseFixed(f[7], 0, x) ? (uint8_t)(x > 255 ? 255 : x) : 0;
   if (parseFixed(f[8], 1, x) && x >= 0) cur_.hdopX10 = x > 65535 ? 65535 : (uint16_t)x;
   if (parseFixed(f[9], 1, x)) cur_.altDm = (int32_t)x;
+  haveLastGga_ = true;
+  lastGgaTimeMs_ = t;
+  lastFixQuality_ = cur_.fixQuality;
+  lastSats_ = cur_.sats;
+  lastHdopX10_ = cur_.hdopX10;
+  lastAltDm_ = cur_.altDm;
   if (!cur_.hasRmc) {
     int32_t v;
     if (parseCoordE7(f[2], f[3][0], v)) cur_.latE7 = v;

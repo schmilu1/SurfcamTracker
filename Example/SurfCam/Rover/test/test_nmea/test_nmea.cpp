@@ -210,6 +210,55 @@ void test_other_sentences_are_ignored() {
   TEST_ASSERT_EQUAL_UINT32(0, p.stats().rmc);
 }
 
+// GGA bzw. RMC um 12:00:<sec>.<cs> (sec 0..59, cs Hundertstel)
+static int feedGga(NmeaParser& p, int sec, int cs) {
+  char s[128], body[100];
+  snprintf(body, sizeof(body), "GNGGA,1200%02d.%02d,4700.0000,N,00800.0000,E,1,11,1.2,412.5,M,47.1,M,,",
+           sec, cs);
+  sentence(s, sizeof(s), body);
+  return feedAll(p, s);
+}
+
+static int feedRmc(NmeaParser& p, int sec, int cs) {
+  char s[128], body[100];
+  snprintf(body, sizeof(body), "GNRMC,1200%02d.%02d,A,4700.0000,N,00800.0000,E,0.0,0.0,051126,,,A",
+           sec, cs);
+  sentence(s, sizeof(s), body);
+  return feedAll(p, s);
+}
+
+void test_missing_gga_carries_previous_values() {
+  NmeaParser p;
+  feedGga(p, 0, 0);
+  TEST_ASSERT_EQUAL(1, feedRmc(p, 0, 0));   // 12:00:00.00 vollständig
+  TEST_ASSERT_EQUAL(0, feedRmc(p, 0, 20));  // 12:00:00.20 nur RMC -> wartet
+  TEST_ASSERT_EQUAL(1, feedGga(p, 0, 40));  // nächster GGA meldet die Epoche ohne GGA
+  const GnssFix& f = p.epoch();
+  TEST_ASSERT_EQUAL_UINT32(43200200UL, f.timeMs);
+  TEST_ASSERT_FALSE(f.hasGga);
+  TEST_ASSERT_TRUE(f.ggaCarried);
+  TEST_ASSERT_TRUE(f.valid);
+  TEST_ASSERT_EQUAL_UINT8(1, f.fixQuality);
+  TEST_ASSERT_EQUAL_UINT8(11, f.sats);
+  TEST_ASSERT_EQUAL_UINT16(12, f.hdopX10);
+  TEST_ASSERT_EQUAL_INT32(4125, f.altDm);
+  TEST_ASSERT_EQUAL_UINT32(1, p.stats().rmcOnly);
+  // danach wieder normale Epochen ohne Übernahme
+  TEST_ASSERT_EQUAL(1, feedRmc(p, 0, 40));
+  TEST_ASSERT_FALSE(p.epoch().ggaCarried);
+}
+
+void test_missing_gga_older_than_2s_is_not_carried() {
+  NmeaParser p;
+  feedGga(p, 0, 0);
+  TEST_ASSERT_EQUAL(1, feedRmc(p, 0, 0));
+  TEST_ASSERT_EQUAL(0, feedRmc(p, 3, 0));   // 3 s später, GGA fehlt
+  TEST_ASSERT_EQUAL(1, feedGga(p, 3, 20));
+  TEST_ASSERT_FALSE(p.epoch().ggaCarried);
+  TEST_ASSERT_EQUAL_UINT8(0, p.epoch().sats);
+  TEST_ASSERT_TRUE(p.epoch().valid);  // RMC sagt weiterhin 'A'
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_checksum_of_known_sentence);
@@ -227,5 +276,7 @@ int main(int, char**) {
   RUN_TEST(test_overlong_line_is_ignored);
   RUN_TEST(test_garbage_between_sentences);
   RUN_TEST(test_other_sentences_are_ignored);
+  RUN_TEST(test_missing_gga_carries_previous_values);
+  RUN_TEST(test_missing_gga_older_than_2s_is_not_carried);
   return UNITY_END();
 }

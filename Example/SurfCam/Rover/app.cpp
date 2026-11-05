@@ -221,9 +221,11 @@ void printStatus(Print& out) {
   out.printf("SurfCam Rover %s, Geräte-ID %u, Laufzeit %lu s\r\n", ROVER_FW_VERSION, settings.deviceId,
              (unsigned long)(millis() / 1000));
   const surfcam::NmeaStats& s = gnss.stats();
-  out.printf("GNSS:  %lu Baud, Soll %u Hz, gemessen %.1f Hz, Sätze %lu, Prüfsummenfehler %lu, %s\r\n",
-             (unsigned long)gnss.baud(), gnss.rateHz(), gnss.measuredHz(), (unsigned long)s.sentences,
-             (unsigned long)s.checksumErrors, gnssAlive() ? "Daten OK" : "KEINE DATEN");
+  out.printf("GNSS:  %lu Baud, Soll %u Hz, gemessen %.1f Hz, %s\r\n", (unsigned long)gnss.baud(),
+             gnss.rateHz(), gnss.measuredHz(), gnssAlive() ? "Daten OK" : "KEINE DATEN");
+  out.printf("       Sätze %lu, Epochen %lu, ohne GGA %lu, Prüfsummenfehler %lu, zu lange Zeilen %lu\r\n",
+             (unsigned long)s.sentences, (unsigned long)s.epochs, (unsigned long)s.rmcOnly,
+             (unsigned long)s.checksumErrors, (unsigned long)s.overflows);
   if (g_haveFix) {
     const uint32_t t = g_fix.timeMs;
     if (t != surfcam::kTimeUnknown) {

@@ -27,6 +27,7 @@ struct GnssFix {
   int32_t altDm = 0;            // Höhe über Meer in Dezimetern
   bool hasRmc = false;
   bool hasGga = false;
+  bool ggaCarried = false;      // GGA fehlte; Qualität/Sats/HDOP/Höhe vom letzten GGA (<= 2 s) übernommen
 };
 
 struct NmeaStats {
@@ -36,6 +37,7 @@ struct NmeaStats {
   uint32_t rmc = 0;
   uint32_t gga = 0;
   uint32_t epochs = 0;
+  uint32_t rmcOnly = 0;         // Epochen ohne GGA (z. B. verlorene Zeichen)
 };
 
 class NmeaParser {
@@ -75,6 +77,14 @@ class NmeaParser {
   GnssFix cur_;
   GnssFix out_;
   NmeaStats stats_;
+
+  // Letzter GGA-Satz, falls in einer Epoche der GGA fehlt
+  bool haveLastGga_ = false;
+  uint32_t lastGgaTimeMs_ = kTimeUnknown;
+  uint8_t lastFixQuality_ = 0;
+  uint8_t lastSats_ = 0;
+  uint16_t lastHdopX10_ = 0;
+  int32_t lastAltDm_ = 0;
 };
 
 }  // namespace surfcam

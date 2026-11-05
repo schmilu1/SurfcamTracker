@@ -118,7 +118,7 @@ Lädt Plattform, Core 3.3.12 und RadioLib 7.8.1 automatisch.
 ```
 pio run -e trackerd -t upload
 pio device monitor
-pio test -e native        # 25 Unit-Tests, ohne Hardware
+pio test -e native        # 27 Unit-Tests, ohne Hardware
 ```
 
 ### Arduino IDE (alternativ)
@@ -146,6 +146,12 @@ Loop ─► NMEA lesen ─► Epoche (RMC+GGA mit gleicher Zeit)
 - 115200 Baud und 10 Hz werden übernommen und erreicht.
 - 6 Satelliten, HDOP 4,3: Die Position wanderte in 15 s um etwa 14 m, während die gemeldete Geschwindigkeit bei 0,0 km/h und der Kurs fest blieben. Das L76K hält im Stillstand Geschwindigkeit und Kurs fest (Static Hold). Ob das langsames Paddeln betrifft, muss draussen geprüft werden. Der Pi sollte die Geschwindigkeit zusätzlich aus den Positionen ableiten.
 
+**Am Gerät gemessen (Rover-Firmware 0.1.0, 05.11.2026, Fenster):**
+- 5,0 Hz gemessen, nur `$GNGGA`/`$GNRMC`, Log mit 5 Positionen pro Sekunde.
+- Mit 11–12 Satelliten und HDOP 1,0 blieb die Position über 1,5 min innerhalb von etwa 1 m. Mit 6 Satelliten driftete sie in 15 s um etwa 8 m, bei gemeldeter Geschwindigkeit 0,00.
+- Bei schlechtem Empfang meldete das L76K einen Sprung von etwa 215 m innerhalb von 200 ms als gültigen Fix (Höhe fiel dabei auf −47,1 m = Ellipsoidhöhe 0). Ausreisser muss der Empfänger verwerfen.
+- Vereinzelt fehlte in einer Epoche der GGA-Satz. Vermutung: Beim Schreiben ins Flash ist die CPU kurz blockiert und der UART-Hardwarepuffer läuft über. Der Parser übernimmt seither Qualität, Satelliten, HDOP und Höhe vom letzten GGA (höchstens 2 s alt). `ATI` zählt solche Epochen („ohne GGA“).
+
 **Nicht verifiziert:**
 - Feldreihenfolge von `$PCAS03` (RMC+GGA). Ob nur noch RMC und GGA kommen, zeigt `AT+NMEA=1`.
 - Empfang durch das SX1303-Gateway auf 869,525 MHz / 250 kHz und Weitergabe der Rohframes über den ChirpStack Gateway Bridge – wird mit dem Pi-Teil geprüft.
@@ -153,4 +159,4 @@ Loop ─► NMEA lesen ─► Epoche (RMC+GGA mit gleicher Zeit)
 - Stromverbrauch: grob geschätzt 50–70 mA im Betrieb (ESP32 bei 80 MHz, GNSS, LoRa mit 10 % Sendezeit). Laufzeit daher vor dem ersten Einsatz messen.
 - Akkuspannung: Teiler 100k/470k laut Schaltplan, nicht kalibriert.
 
-Die Firmware ist **noch nicht auf dem Gerät getestet**. Geprüft sind: Build mit `platformio/espressif32@8.0.0` (Arduino-ESP32 3.3.12) und RadioLib 7.8.1 ohne Warnungen (RAM 8,4 %, Flash 35,6 %) sowie die Unit-Tests (25/25). Beim Start vergleicht die Firmware ihre Sendezeit-Berechnung mit `getTimeOnAir()` von RadioLib und warnt bei mehr als 5 % Abweichung.
+Die Firmware ist **noch nicht auf dem Gerät getestet**. Geprüft sind: Build mit `platformio/espressif32@8.0.0` (Arduino-ESP32 3.3.12) und RadioLib 7.8.1 ohne Warnungen (RAM 8,4 %, Flash 35,6 %) sowie die Unit-Tests (27/27). Beim Start vergleicht die Firmware ihre Sendezeit-Berechnung mit `getTimeOnAir()` von RadioLib und warnt bei mehr als 5 % Abweichung.
