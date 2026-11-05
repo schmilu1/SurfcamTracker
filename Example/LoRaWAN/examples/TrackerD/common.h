@@ -55,7 +55,7 @@ class SYS:public LORA
     void GPSDATA_CLEAR(void);
     void customize_freq_set(void);
     void Band_information(void);
-    uint8_t     gps_data_buff[15];
+    uint8_t     gps_data_buff[17];   // TrackerD-LS (sensor_type 22) nutzt 17 Bytes
     char        blemask_data[12]={'0','0','0','0','0','0'};
     char        wifimask_data[12]={'0','0','0','0','0','0'};
     char        buff1[100];

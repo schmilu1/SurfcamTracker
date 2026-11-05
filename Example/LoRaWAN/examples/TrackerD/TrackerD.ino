@@ -1341,7 +1341,12 @@ void loop() {
   if (Serial.available() > 0)//串口接收到数据
   { 
     memset(rxData,0,maxRxSize);
-    Serial.readBytes(rxData,Serial.available());
+    size_t rxLen = Serial.available();
+    if(rxLen > maxRxSize - 1)
+    {
+      rxLen = maxRxSize - 1;   // Platz fuer '\0' lassen
+    }
+    Serial.readBytes(rxData,rxLen);
     ATEerror_t AT_State = ATInsPro(rxData);
     if(AT_State == AT_OK)
       Serial.println(ATError_description[AT_OK]);
@@ -2322,7 +2327,7 @@ static void LORA_RxData(uint8_t *AppData, uint8_t AppData_Len)
       {
         LMIC_setAdrMode(1);
         bool _adr = 1;
-        bool _dr = AppData[2];
+        uint8_t _dr = AppData[2];
         sys.LORA_SetADR(_adr);
         sys.LORA_SetDR(_dr);
         LMIC_setDrTxpow(sys.LORA_GetDR(),sys.LORA_GetTXP());

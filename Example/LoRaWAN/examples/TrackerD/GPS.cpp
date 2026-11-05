@@ -217,8 +217,8 @@ bool GPS_DATA(void)
     }
     else
     {
-      return false;                           
-    }   
+      return false;
+    }
   }
-  
+  return false;   // keine Daten vom GPS-Modul
 }
