@@ -855,88 +855,27 @@ void do_send(osjob_t* j)
         }
         if(sys.sensor_mode == 2 || sys.sensor_mode == 3 || bg_mode ==2 || bg_mode ==3)
         {
-          if(sys.ble_mod  == 0)
-          {      
-            ;                  
-          }
-          else if(sys.ble_mod  == 1)
+          // BLE ist in diesem Build deaktiviert -> Modus 2/3 sendet immer WLAN (Port 8).
+          // Payload wie im Original: 6 Byte SSID, 1 Byte RSSI, Alarm/Batterie, Flags.
+          sys.port = 8;
+          if(sys.ble_gps == 1)
           {
-            sys.port = 6;
-            if(sys.ble_gps == 1)
+            // BG-Modus: nach dem WLAN-Uplink wieder auf GPS zurueckschalten
+            if(button_Count != 0)
             {
-              bg_mode = 1; 
-              if(sys.ble_gps == 1&& button_Count != 0)
-              {
-                turn_interrupts = 1;             
-              }
-              bg_mode = 1; 
-              bg_flag = 0; 
-            }           
-            char bleuuidmajorminjor[100]={0};
-            char blerssi[4];
-            for(int a=0;a<(strlen(sys.BLEDATA1))-3;a++)
-            {
-              bleuuidmajorminjor[a] = sys.BLEDATA1[a];
+              turn_interrupts = 1;
             }
-            for(int a=42; a<strlen(sys.BLEDATA1); a++)
-            {
-              blerssi[a-42] = sys.BLEDATA1[a];
-            }        
-            for(int j=0;i<(strlen(bleuuidmajorminjor)/4)+13;i++,j++)
-            {
-              char str[5] = {0};
-              memcpy(str,bleuuidmajorminjor+i*4,4);
-              int num = hexToint(str);
-              mydata[j*2] = num>>8;
-              mydata[j*2+1] = num; 
-            }
-            String brssi = blerssi;
-            int num = brssi.toInt();  
-            mydata[i++] = num;     
-            mydata[i++] = ((sys.alarm<<6) | (sensor.bat>>8)) & 0xFF;
-            mydata[i++] = (sensor.bat) & 0xFF;
-            mydata[i++] = ((sys.ble_mod<<6) | (sys.lon<<5)|(intwk_flag<<4)) & 0xFF;                                              
+            bg_mode = 1;
+            bg_flag = 0;
           }
-          else if(sys.ble_mod  == 2)
+          for(int a=0;a<6;a++)
           {
-            sys.port = 8;
-            Serial.println("");
-            char  Wssid[10]={0};
-            char  Wrssi[10];
-            for(int a=0;a<(strlen(sys.databuf))-3;a++)
-            {
-              Wssid[a] = sys.databuf[a];
-            }
-            for(int a=6; a<strlen(sys.databuf); a++)
-            {
-              Wrssi[a-6] = sys.databuf[a];
-            } 
-            String wrssi = Wrssi;
-            int wifirssi = wrssi.toInt(); 
-           for(int a=0;a<strlen(Wssid);a++)
-            {
-              mydata[i++] = Wssid[a];
-            }
-            mydata[i++] = wifirssi & 0xFF; 
-            mydata[i++] = ((sys.alarm<<6) | (sensor.bat>>8)) & 0xFF;
-            mydata[i++] = (sensor.bat) & 0xFF; 
-            mydata[i++] = ((sys.ble_mod<<6) | (sys.lon<<5)|(intwk_flag<<4)) & 0xFF;                                                 
+            mydata[i++] = sys.databuf[a];
           }
-          else if(sys.ble_mod  == 3)
-          {
-            mydata[i++] = ((sys.alarm<<6) | (sensor.bat>>8)) & 0xFF;
-            mydata[i++] = (sensor.bat) & 0xFF; 
-            mydata[i++] = ((sys.ble_mod<<6) | (sys.lon<<5)|(intwk_flag<<4)) & 0xFF;              
-            sys.port = 9;
-            for(int j =0;j<sys.blecount;j++)
-            {
-              mydata[i++]=sys.bledata[j];
-            }     
-            //            for(int a=0;a<sys.blecount;a++)
-            //               Serial.printf("%.2x ",mydata[a]);
-            //            Serial.println();             
-                                               
-          }          
+          mydata[i++] = (uint8_t)sys.wifi_rssi;
+          mydata[i++] = ((sys.alarm<<6) | (sensor.bat>>8)) & 0xFF;
+          mydata[i++] = (sensor.bat) & 0xFF;
+          mydata[i++] = ((sys.ble_mod<<6) | (sys.lon<<5)|(intwk_flag<<4)) & 0xFF;
         }
       }        
       LMIC_setTxData2(sys.port, mydata, i, sys.frame_flag);
@@ -1379,34 +1318,19 @@ void setup() {
       Serial.println("Start searching for GPS...");
       start_gps_timeout();
     }
-    // else if(sys.sensor_mode == 2|| sys.sensor_mode == 3 || bg_mode == 2 || bg_mode == 3)
-    // {
-    //   if(sys.sensor_mode == 2 || bg_mode == 2)
-    //   {      
-    //     if(sys.ble_mod == 1) 
-    //     {  
-    //       Serial.println("Start searching for BLE..."); 
-    //     }
-    //     else if(sys.ble_mod == 2) 
-    //     {  
-    //       Serial.println("Start searching for WIFI..."); 
-    //     }        
-    //   }
-    //   else if(sys.sensor_mode == 3 || bg_mode == 3)
-    //   {
-    //    Serial.println("Enable ble and gps hybrid mode"); 
-    //   }
-    //   if(sys.ble_mod == 0||sys.ble_mod == 1||sys.ble_mod == 3) 
-    //   {       
-    //     ble_init();
-    //     ble_run();
-    //   }
-    //   else if(sys.ble_mod == 2) 
-    //   {
-    //     wifi_scan();
-    //   }
-    //   sys.mod = sys.save_mode; 
-    // }       
+    else if(sys.sensor_mode == 2|| sys.sensor_mode == 3 || bg_mode == 2 || bg_mode == 3)
+    {
+      if(sys.sensor_mode == 3 || bg_mode == 3)
+      {
+        Serial.println("Enable wifi and gps hybrid mode");
+      }
+      else
+      {
+        Serial.println("Start searching for WIFI...");
+      }
+      wifi_scan();
+      sys.mod = sys.save_mode;
+    }
     sys.alarm_count =0;
     os_JOINED_flag = 0;     
   } 
@@ -1659,7 +1583,7 @@ void sys_sleep(void)
       if(os_JOINED_flag == 0 && bg_flag == 1)
       {
         bg_mode = 2;
-        sys.ble_mod = 1;
+        sys.ble_mod = 2;   // BG-Modus nutzt WLAN (BLE deaktiviert)
       }
       sys.gps_start = 2; 
       sys.config_Write();
@@ -1779,12 +1703,13 @@ void sys_sleep(void)
 }
 void alarm_state(void)
 {
-  // if(sys.ble_flag == 2)
-  // {
-  //   sys.exti_flag = 3;
-  //   sys.sensor_mode = 1;    
-  //   sys.ble_flag = 0; 
-  // }
+  // Hybridmodus: WLAN-Scan ohne Treffer -> auf GPS umschalten
+  if(sys.ble_flag == 2)
+  {
+    sys.exti_flag = 3;
+    sys.sensor_mode = 1;
+    sys.ble_flag = 0;
+  }
   if(sys.exti_flag == 1)
   {
     if(sys.gps_alarm == 1)
@@ -2113,29 +2038,14 @@ void alarm_state(void)
       else if(sys.sensor_mode == 2 || sys.sensor_mode == 3)
       {
         if(sys.sensor_mode == 2)
-        {      
-          if(sys.ble_mod == 1) 
-          {  
-            Serial.println("Start searching for BLE..."); 
-          }
-          else if(sys.ble_mod == 2) 
-          {  
-            Serial.println("Start searching for WIFI..."); 
-          }        
+        {
+          Serial.println("Start searching for WIFI...");
         }
-        // else if(sys.sensor_mode == 3)
-        // {
-        //  Serial.println("Enable ble and gps hybrid mode"); 
-        // }
-        // if(sys.ble_mod == 1) 
-        // {       
-        //   ble_init();
-        //   ble_run();
-        // }
-        // else if(sys.ble_mod == 2) 
-        // {
-        //   wifi_scan();
-        // }                   
+        else
+        {
+          Serial.println("Enable wifi and gps hybrid mode");
+        }
+        wifi_scan();
         if(button_Count1  == 1)
         {
           myIMU.imu_power_down();  
@@ -2157,29 +2067,14 @@ void downlink_alarm_send(void)
   else if(sys.sensor_mode == 2 || sys.sensor_mode == 3)
   {
     if(sys.sensor_mode == 2)
-    {      
-      if(sys.ble_mod == 1) 
-      {  
-        Serial.println("Start searching for BLE..."); 
-      }
-      else if(sys.ble_mod == 2) 
-      {  
-        Serial.println("Start searching for WIFI..."); 
-      }        
-    }
-    else if(sys.sensor_mode == 3)
     {
-      Serial.println("Enable ble and gps hybrid mode"); 
+      Serial.println("Start searching for WIFI...");
     }
-    // if(sys.ble_mod == 1) 
-    // {       
-    //   ble_init();
-    //   ble_run();
-    // }
-    // else if(sys.ble_mod == 2) 
-    // {
-    //   wifi_scan();
-    // } 
+    else
+    {
+      Serial.println("Enable wifi and gps hybrid mode");
+    }
+    wifi_scan();
   }
   if(sys.gps_work_flag==false && sys.collect_sensor_flag == false )
   {
@@ -2499,7 +2394,13 @@ static void LORA_RxData(uint8_t *AppData, uint8_t AppData_Len)
         sys.mod = AppData[1];
         sys.save_mode = AppData[1];
        }
-       if(AppData_Len == 4 )//AT+SMOD = 1,0
+       if(AppData_Len == 4 && (AppData[1] == 2 || AppData[1] == 3) && AppData[3] != 2)
+       {
+        // BLE ist in diesem Build deaktiviert: Modus 2/3 nur mit WLAN (ble_mod = 2)
+        Serial.println("Invalid parameter (BLE not supported, use WiFi)");
+        store_flag = false;
+       }
+       else if(AppData_Len == 4 )//AT+SMOD = 1,0
        {
         sys.sensor_mode = AppData[1];
         sys.save_sensor_mode = AppData[1];

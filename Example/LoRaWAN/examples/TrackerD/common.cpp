@@ -1149,7 +1149,17 @@ void SYS::config_Read(void)
     wifimask_data[j+1]= s_config1[0+i]>>16;
     wifimask_data[j+2]= s_config1[0+i]>>8;
     wifimask_data[j+3]= s_config1[0+i];
-  }           
+  }
+  wifimask_data[sizeof(wifimask_data)-1] = '\0';
+  blemask_data[sizeof(blemask_data)-1] = '\0';
+
+  // BLE ist in diesem Build deaktiviert: alte Konfigurationen mit BLE-Modus auf WLAN umstellen
+  if((sensor_mode == 2 || sensor_mode == 3 || save_sensor_mode == 2 || save_sensor_mode == 3 || ble_gps == 1)
+     && (ble_mod != 2 || save_ble_mode != 2))
+  {
+    ble_mod = 2;
+    save_ble_mode = 2;
+  }
 }
 
 void SYS::gps_data_Weite(void)

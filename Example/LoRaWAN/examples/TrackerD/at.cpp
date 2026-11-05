@@ -362,16 +362,26 @@ ATEerror_t at_smod_get(const char *param)
 
 ATEerror_t at_smod_set(const char *param)
 {
-  char mod[5]={0};
-  memcpy(mod,param,5);
-  sys.sensor_mode = (int)mod[0]-48;
-  sys.save_sensor_mode = (int)mod[0]-48;
-  sys.mod = (int)mod[2]-48;
-  sys.save_mode = (int)mod[2]-48;
-  sys.ble_mod = (int)mod[4]-48;
-  sys.save_ble_mode = (int)mod[4]-48;    
-  if(strlen(param)!=5)
-    return AT_PARAM_ERROR;  
+  // Format: AT+SMOD=a,b,c  (erst pruefen, dann uebernehmen)
+  if(strlen(param)!=5 || param[1]!=',' || param[3]!=',')
+    return AT_PARAM_ERROR;
+  int smode = param[0]-'0';
+  int md    = param[2]-'0';
+  int bmode = param[4]-'0';
+  if(smode<1 || smode>3 || md<0 || md>2 || bmode<0 || bmode>3)
+    return AT_PARAM_ERROR;
+  // BLE ist in diesem Build deaktiviert: Modus 2/3 nur mit WLAN (c = 2)
+  if((smode==2 || smode==3) && bmode!=2)
+  {
+    Serial.println("BLE not supported, use WiFi: AT+SMOD=x,x,2");
+    return AT_PARAM_ERROR;
+  }
+  sys.sensor_mode = smode;
+  sys.save_sensor_mode = smode;
+  sys.mod = md;
+  sys.save_mode = md;
+  sys.ble_mod = bmode;
+  sys.save_ble_mode = bmode;
   return AT_OK;
 }
 

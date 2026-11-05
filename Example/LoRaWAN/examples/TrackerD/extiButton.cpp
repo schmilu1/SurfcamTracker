@@ -151,10 +151,7 @@ void attachMultiClick()
         sys.gps_work_flag = false;
         if(sys.sensor_mode == 2 )
         {
-          for(int i=0;i<45;i++)
-          {
-            sys.BLEDATA1[i]= {'f'};
-          }   
+          wifi_set_empty();   // BLE deaktiviert: leeres WLAN-Ergebnis   
         }          
         sys.config_Write(); 
         if(sys.lon == 1)

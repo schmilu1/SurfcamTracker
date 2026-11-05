@@ -6,8 +6,8 @@
 #include "lora.h"
 #include "extiButton.h"
 #include "extiButtonLS.h"
-//#include "blescan.h"
-//#include "wifiscan.h"
+//#include "blescan.h"   // BLE ist in diesem Build deaktiviert
+#include "wifiscan.h"
 #include "driver/rtc_io.h" 
 #include "hal/rtc_io_hal.h"
 #include "driver/ledc.h"
@@ -65,7 +65,8 @@ class SYS:public LORA
     char        BLEDATA3[100];
     char        BLEDATA4[100];
     char        BLEDATA5[100]; 
-    char        databuf[10];
+    char        databuf[7] = "ffffff";   // WLAN: 6 Zeichen SSID + '\0'
+    int8_t      wifi_rssi = 0;           // WLAN: RSSI des gewaehlten AP
     uint32_t    ble_config[32] = {0};
     uint32_t    wifi_config[32] = {0};
     uint8_t     blemask_flag =0;
