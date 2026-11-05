@@ -1,3 +1,9 @@
+> **Fork `SurfCam`:** Die Firmware unter [`Example/LoRaWAN/examples/TrackerD`](Example/LoRaWAN/examples/TrackerD) ist auf Arduino-ESP32 Core 3.x und MCCI LMIC 5.x portiert, BLE ist deaktiviert und durch WLAN-Ortung ersetzt, mehrere Fehler sind behoben.
+> - Firmware-Übersicht, Build und Payload: [README](Example/LoRaWAN/examples/TrackerD/README.md)
+> - AT- und Downlink-Befehle: [AT_COMMANDS.md](Example/LoRaWAN/examples/TrackerD/AT_COMMANDS.md)
+>
+> Der folgende Text ist die unveränderte Dokumentation von Dragino.
+
 # About this repository
 This repository is the place to find the software/hardware resources for Dragino TrackerD product.
 
