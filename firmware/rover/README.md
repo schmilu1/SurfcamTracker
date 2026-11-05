@@ -47,6 +47,8 @@ Referenz-Implementierung: [packet.h](packet.h) / [packet.cpp](packet.cpp) (`enco
 | Taste **1 s** halten (im Sleep) | Einschalten (kürzeres Drücken weckt nur kurz und schläft wieder) |
 | Taste kurz drücken | Status auf USB, Akkustand als 1–4 grüne Blinker |
 
+Die Taste hängt je nach Board-Revision an **IO0** (ältere Geräte, gedrückt = LOW) oder an **IO25** (neuere Geräte, gedrückt = HIGH). Die Firmware liest beide und wacht über beide auf (ext0 bzw. ext1). Auf Board v1.2 ist IO25 der GNSS-Reset; er wird als Eingang mit Pulldown betrieben und bleibt so inaktiv. `AT+BTN` zeigt 10 s lang die Pegel beider Pins.
+
 | LED (1× pro Sekunde) | Bedeutung |
 |---|---|
 | grün kurz | GNSS-Fix |
@@ -71,6 +73,7 @@ Unter 3,3 V Akkuspannung (10 s lang) schaltet sich der Rover selbst ab.
 | `AT+BW=<125000\|250000\|500000>` | Bandbreite | 250000 |
 | `AT+LED=<0\|1>` | Status-LEDs | 1 |
 | `AT+NMEA=<0\|1>` | NMEA-Rohdaten anzeigen (nicht gespeichert) | 0 |
+| `AT+BTN` | Tastentest: 10 s lang Pegel von IO0 und IO25 anzeigen | |
 | `AT+GNSS=<befehl>` | Befehl ans L76K, ohne `$` und Prüfsumme, z. B. `AT+GNSS=PCAS06,0` | |
 | `AT+LOG` | Sessions im Flash auflisten | |
 | `AT+LOGDUMP` / `AT+LOGDUMP=<datei>` | neueste bzw. angegebene Session als CSV ausgeben (Name aus `AT+LOG`, z. B. `261105_214349.trk`) | |
@@ -154,6 +157,8 @@ Loop ─► NMEA lesen ─► Epoche (RMC+GGA mit gleicher Zeit)
 - Direkt nach dem Start meldet das L76K etwa 1,5 s lang Qualität 6 („geschätzt“) mit eingefrorener Position (Warmstart aus V_BCKP). Im Funkpaket als Fix-Art 3 markiert.
 - Geschwindigkeit: 0,8–1,7 m/s beim Gehen werden mit passendem Kurs gemeldet. Langsames Wandern um etwa 0,25 m/s meldet das L76K als 0,00 (Static Hold), der Kurs bleibt dann stehen.
 - Mit nur 4 Satelliten entsteht eine Scheinbewegung von etwa 10 m bei gemeldetem HDOP 1,3, danach 14,1. Fixes mit wenigen Satelliten bzw. hohem HDOP muss der Empfänger verwerfen oder abwerten.
+
+**Taste (06.11.2026):** Mit Version 0.1.0 liess sich das Gerät per Taste weder aus- noch einschalten (`AT+SLEEP` funktionierte). Die Taste hängt bei diesem Gerät nicht an IO0. Nach der alten Dragino-Firmware nutzen neuere Geräte IO25 (active-high), was 0.1.0 als GNSS-Reset-Ausgang auf LOW gehalten hatte.
 
 **Nicht verifiziert:**
 - Feldreihenfolge von `$PCAS03` (RMC+GGA). Ob nur noch RMC und GGA kommen, zeigt `AT+NMEA=1`.

@@ -3,13 +3,15 @@
 
 #include <stdint.h>
 
-#define ROVER_FW_VERSION "0.1.0"
+#define ROVER_FW_VERSION "0.1.1"
 
 namespace pins {
 constexpr int GPS_RX = 9;      // ESP RX  <- L76K TXD
 constexpr int GPS_TX = 10;     // ESP TX  -> L76K RXD
 constexpr int GPS_POWER = 12;  // HIGH = GNSS-Versorgung an (Strapping-Pin, 10k Pulldown auf der Platine)
-constexpr int GPS_RESET = 25;  // HIGH = Reset aktiv (über BSS138)
+// IO25 ist je nach Board-Revision der GNSS-Reset (Schaltplan v1.2, HIGH = Reset) oder die
+// Taste (neuere Geräte, HIGH = gedrückt). Er wird deshalb nur als Eingang mit Pulldown
+// betrieben: als Reset bleibt er inaktiv, als Taste ist er lesbar.
 
 constexpr int LORA_SCK = 5;
 constexpr int LORA_MISO = 19;
@@ -23,7 +25,8 @@ constexpr int LED_RED = 13;
 constexpr int LED_BLUE = 2;
 constexpr int LED_GREEN = 15;
 
-constexpr int BUTTON = 0;      // active-low, auch Boot-Pin
+constexpr int BUTTON = 0;       // Taste ältere Geräte: active-low, auch Boot-Pin
+constexpr int BUTTON_HIGH = 25; // Taste neuere Geräte: active-high (siehe Hinweis bei GPS_POWER)
 constexpr int BATTERY = 35;    // Teiler 100k / 470k
 constexpr int BUZZER = 4;
 }  // namespace pins

@@ -125,10 +125,28 @@ static void showBatteryLevel() {
 
 // ---------------------------------------------------------------- Ein/Aus
 
+// Taste: ältere Geräte an IO0 (gedrückt = LOW), neuere an IO25 (gedrückt = HIGH).
+// Beide Pins werden gelesen, damit die Firmware auf beiden Varianten funktioniert.
+bool buttonPressed() {
+  return digitalRead(pins::BUTTON) == LOW || digitalRead(pins::BUTTON_HIGH) == HIGH;
+}
+
+static void initButtonPins() {
+  rtc_gpio_deinit(GPIO_NUM_0);   // nach Wake-up wieder normale GPIOs
+  rtc_gpio_deinit(GPIO_NUM_25);
+  pinMode(pins::BUTTON, INPUT_PULLUP);
+  pinMode(pins::BUTTON_HIGH, INPUT_PULLDOWN);
+}
+
 static void enterDeepSleep() {
-  esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);  // Taste (active-low)
+  // RTC-Peripherie eingeschaltet lassen, damit Pull-up/-down im Sleep wirken
+  esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);                           // ältere Geräte
   rtc_gpio_pullup_en(GPIO_NUM_0);
   rtc_gpio_pulldown_dis(GPIO_NUM_0);
+  esp_sleep_enable_ext1_wakeup(1ULL << GPIO_NUM_25, ESP_EXT1_WAKEUP_ANY_HIGH);  // neuere Geräte
+  rtc_gpio_pulldown_en(GPIO_NUM_25);
+  rtc_gpio_pullup_dis(GPIO_NUM_25);
   Serial.flush();
   esp_deep_sleep_start();
 }
@@ -143,13 +161,13 @@ void powerOff(const char* reason) {
   delay(1000);
   digitalWrite(pins::LED_RED, LOW);
   // Erst schlafen, wenn die Taste losgelassen ist, sonst wacht das Gerät sofort wieder auf
-  while (digitalRead(pins::BUTTON) == LOW) delay(10);
+  while (buttonPressed()) delay(10);
   delay(50);
   enterDeepSleep();
 }
 
 static void handleButton() {
-  const bool down = digitalRead(pins::BUTTON) == LOW;
+  const bool down = buttonPressed();
   const uint32_t now = millis();
   if (g_ignoreUntilRelease) {
     if (!down) g_ignoreUntilRelease = false;
@@ -258,14 +276,14 @@ void printStatus(Print& out) {
 // ---------------------------------------------------------------- Ablauf
 
 void appSetup() {
-  rtc_gpio_deinit(GPIO_NUM_0);  // nach Wake-up aus ext0 wieder als normaler GPIO
-  pinMode(pins::BUTTON, INPUT_PULLUP);
+  initButtonPins();
   Serial.begin(115200);
 
-  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+  const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+  if (cause == ESP_SLEEP_WAKEUP_EXT0 || cause == ESP_SLEEP_WAKEUP_EXT1) {
     // Nur einschalten, wenn die Taste 1 s gehalten wird (Schutz gegen versehentliches Drücken)
     const uint32_t t0 = millis();
-    while (digitalRead(pins::BUTTON) == LOW && millis() - t0 < timing::WAKE_HOLD_MS) delay(10);
+    while (buttonPressed() && millis() - t0 < timing::WAKE_HOLD_MS) delay(10);
     if (millis() - t0 < timing::WAKE_HOLD_MS) enterDeepSleep();
     g_ignoreUntilRelease = true;
   }

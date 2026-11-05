@@ -32,8 +32,8 @@ void Gnss::sendCommand(const char* body) {
 }
 
 bool Gnss::begin(uint8_t rateHz) {
-  pinMode(pins::GPS_RESET, OUTPUT);
-  digitalWrite(pins::GPS_RESET, LOW);  // Reset freigeben
+  // GNSS-Reset (IO25 auf Board v1.2) wird nicht angesteuert: IO25 ist auf neueren Geräten die
+  // Taste und wird in app.cpp als Eingang mit Pulldown betrieben (= Reset inaktiv).
   pinMode(pins::GPS_POWER, OUTPUT);
   digitalWrite(pins::GPS_POWER, HIGH);
   delay(300);

@@ -3,6 +3,7 @@
 #include <ctype.h>
 
 #include "app.h"
+#include "config.h"
 #include "packet.h"
 
 namespace {
@@ -37,6 +38,7 @@ void printHelp() {
       "AT+LED=<0|1>     Status-LEDs\r\n"
       "AT+NMEA=<0|1>    NMEA-Rohdaten anzeigen (nicht gespeichert)\r\n"
       "AT+GNSS=<cmd>    Befehl an L76K senden, z. B. AT+GNSS=PCAS06,0\r\n"
+      "AT+BTN           Tastentest: 10 s lang Pegel von IO0 und IO25 anzeigen\r\n"
       "AT+LOG           Sessions im Flash auflisten\r\n"
       "AT+LOGDUMP[=<f>] Session als CSV ausgeben (ohne Name: neueste)\r\n"
       "AT+LOGDEL=<f>    Session löschen (ALL = alle)\r\n"
@@ -183,6 +185,22 @@ void handle(char* cmd) {
     char* star = strchr(val, '*');
     if (star) *star = '\0';
     gnss.sendCommand(val[0] == '$' ? val + 1 : val);
+    ok();
+  } else if (strcmp(cmd, "AT+BTN") == 0) {
+    // Diagnose: an welchem Pin hängt die Taste? (ältere Geräte IO0 LOW, neuere IO25 HIGH)
+    Serial.println("Tastentest 10 s: Taste mehrmals drücken. Ausgabe bei jeder Änderung.");
+    int last0 = -1, last25 = -1;
+    const uint32_t t0 = millis();
+    while (millis() - t0 < 10000) {
+      const int io0 = digitalRead(pins::BUTTON), io25 = digitalRead(pins::BUTTON_HIGH);
+      if (io0 != last0 || io25 != last25) {
+        Serial.printf("%5lu ms  IO0=%d  IO25=%d  -> %s\r\n", (unsigned long)(millis() - t0), io0, io25,
+                      buttonPressed() ? "gedrückt" : "losgelassen");
+        last0 = io0;
+        last25 = io25;
+      }
+      delay(10);
+    }
     ok();
   } else if (strcmp(cmd, "AT+LOG") == 0) {
     trackLog.list(Serial);
