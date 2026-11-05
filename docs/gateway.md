@@ -22,6 +22,16 @@ Seit dem 05.11.2026 läuft **kein ChirpStack** mehr (Netzwerkserver, Postgres, R
 
 Der Pi hat keinen GitHub-Zugang. Änderungen werden auf dem Mac committet und gepusht und per `git bundle` über SSH übertragen (oder nach Einrichten eines Zugangs per `git pull LoRa main`).
 
+## GPS des HAT (Kamerastandort)
+
+Das HAT hat ein eigenes GNSS-Modul (L76B). Es soll später den Kamerastandort liefern, gemittelt über viele Fixes. **Entscheidung (06.11.2026):** Der SurfCam-Dienst liest die Schnittstelle selbst, `lora_pkt_fwd` bekommt keinen `gps_tty_path`. Sonst würde der Forwarder die Schnittstelle exklusiv belegen.
+
+| | |
+|---|---|
+| Schnittstelle | **`/dev/ttyAMA0`**, 9600 Baud, NMEA (`$GN…`, GPS + GLONASS). Nicht `/dev/serial0`, das zeigt auf dem Pi 5 auf die Debug-Schnittstelle `ttyAMA10` |
+| Rechte | Benutzer `Milder` ist in `dialout` |
+| Test 06.11.2026 | Daten kommen, `ANTENNA OK`, aber 0 Satelliten (Antenne im Haus) |
+
 ## Kanalplan (geändert am 05.11.2026)
 
 Ein Funkteil des SX1302 empfängt Kanäle bis `|IF| + Bandbreite/2 ≤ 800 kHz` um seine Mittenfrequenz (`LGW_RF_RX_BANDWIDTH_* = 1600000` in `loragw_hal.c`). Damit der 250-kHz-Einzelkanal auf 869,525 MHz Platz hat, wurden die Mittenfrequenzen verschoben. Alle 8 LoRaWAN-Kanäle sind weiterhin konfiguriert.
