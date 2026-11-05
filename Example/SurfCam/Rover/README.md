@@ -150,7 +150,10 @@ Loop ─► NMEA lesen ─► Epoche (RMC+GGA mit gleicher Zeit)
 - 5,0 Hz gemessen, nur `$GNGGA`/`$GNRMC`, Log mit 5 Positionen pro Sekunde.
 - Mit 11–12 Satelliten und HDOP 1,0 blieb die Position über 1,5 min innerhalb von etwa 1 m. Mit 6 Satelliten driftete sie in 15 s um etwa 8 m, bei gemeldeter Geschwindigkeit 0,00.
 - Bei schlechtem Empfang meldete das L76K einen Sprung von etwa 215 m innerhalb von 200 ms als gültigen Fix (Höhe fiel dabei auf −47,1 m = Ellipsoidhöhe 0). Ausreisser muss der Empfänger verwerfen.
-- Vereinzelt fehlte in einer Epoche der GGA-Satz. Vermutung: Beim Schreiben ins Flash ist die CPU kurz blockiert und der UART-Hardwarepuffer läuft über. Der Parser übernimmt seither Qualität, Satelliten, HDOP und Höhe vom letzten GGA (höchstens 2 s alt). `ATI` zählt solche Epochen („ohne GGA“).
+- Vereinzelt fehlt in einer Epoche der GGA-Satz (2 von 972 Epochen in 194 s). Die Prüfsummenfehler und zu langen Zeilen blieben dabei bei 0, Zeichen gehen also nicht am UART verloren; das L76K lässt den GGA selbst weg, vor allem während es nach dem Start seinen Takt justiert (Zeitstempel wie `.133`, `.483`). Der Parser übernimmt dann Qualität, Satelliten, HDOP und Höhe vom letzten GGA (höchstens 2 s alt). `ATI` zählt solche Epochen („ohne GGA“).
+- Direkt nach dem Start meldet das L76K etwa 1,5 s lang Qualität 6 („geschätzt“) mit eingefrorener Position (Warmstart aus V_BCKP). Im Funkpaket als Fix-Art 3 markiert.
+- Geschwindigkeit: 0,8–1,7 m/s beim Gehen werden mit passendem Kurs gemeldet. Langsames Wandern um etwa 0,25 m/s meldet das L76K als 0,00 (Static Hold), der Kurs bleibt dann stehen.
+- Mit nur 4 Satelliten entsteht eine Scheinbewegung von etwa 10 m bei gemeldetem HDOP 1,3, danach 14,1. Fixes mit wenigen Satelliten bzw. hohem HDOP muss der Empfänger verwerfen oder abwerten.
 
 **Nicht verifiziert:**
 - Feldreihenfolge von `$PCAS03` (RMC+GGA). Ob nur noch RMC und GGA kommen, zeigt `AT+NMEA=1`.
