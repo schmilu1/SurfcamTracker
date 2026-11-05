@@ -76,32 +76,28 @@ int BatGet(void)
 
 void buzzer(void)
 {
+  // Arduino-ESP32 Core 3.x: pinMode() loest den Pin vom LEDC,
+  // ledcAttach() auf einen bereits verbundenen Pin schlaegt fehl.
   pinMode(BAT_PIN_LOW,OUTPUT);
-//  digitalWrite(BAT_PIN_LOW, LOW);
-//  delay(1000);
   digitalWrite(BAT_PIN_LOW, HIGH);
-  ledcAttach(BAT_PIN_LOW, freq, resolution);  
-  ledcWriteTone(BAT_PIN_LOW, 2000);
-  for (int dutyCycle = 255; dutyCycle <= 255; dutyCycle = dutyCycle + 10) {
-//    Serial.println(dutyCycle);
-    ledcWrite(BAT_PIN_LOW, dutyCycle);
-    delay(500);
-  }  
+  if(!ledcAttach(BAT_PIN_LOW, freq, resolution))
+  {
+    Serial.println("buzzer: ledcAttach failed");
+    return;
+  }
+  ledcWriteTone(BAT_PIN_LOW, freq);
+  ledcWrite(BAT_PIN_LOW, 255);
+  delay(500);
   ledcWrite(BAT_PIN_LOW, 125);
 }
 
 void Stop_buzzer(void)
 {
+  ledcWrite(BAT_PIN_LOW, 0);
+  ledcDetach(BAT_PIN_LOW);
   pinMode(BAT_PIN_LOW,OUTPUT);
-  freq = 0;
-  ledcAttach(BAT_PIN_LOW, freq, resolution);  
-  ledcWriteTone(BAT_PIN_LOW, 2000);
-  for (int dutyCycle = 0; dutyCycle <= 0; dutyCycle = dutyCycle ) {
-//    Serial.println(dutyCycle);
-    ledcWrite(BAT_PIN_LOW, dutyCycle);
-    delay(500);
-    break;
-  }  
+  digitalWrite(BAT_PIN_LOW, LOW);
+  delay(500);
 }
 
 void device_strcmp(void)
