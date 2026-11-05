@@ -38,7 +38,7 @@ void printHelp() {
       "AT+NMEA=<0|1>    NMEA-Rohdaten anzeigen (nicht gespeichert)\r\n"
       "AT+GNSS=<cmd>    Befehl an L76K senden, z. B. AT+GNSS=PCAS06,0\r\n"
       "AT+LOG           Sessions im Flash auflisten\r\n"
-      "AT+LOGDUMP=<f>   Session als CSV ausgeben\r\n"
+      "AT+LOGDUMP[=<f>] Session als CSV ausgeben (ohne Name: neueste)\r\n"
       "AT+LOGDEL=<f>    Session löschen (ALL = alle)\r\n"
       "AT+SLEEP         Ausschalten (Aufwecken: Taste 1 s halten)\r\n"
       "ATZ              Neustart\r\n"
@@ -188,12 +188,21 @@ void handle(char* cmd) {
     trackLog.list(Serial);
     ok();
   } else if (strcmp(cmd, "AT+LOGDUMP") == 0) {
-    if (!val || !*val) {
-      err("Dateiname angeben (siehe AT+LOG)");
-    } else if (trackLog.dump(val, Serial)) {
+    // Ohne Namen: neueste Session
+    char name[32];
+    const char* file = val;
+    if (!file || !*file || query) {
+      if (!trackLog.latestName(name, sizeof(name))) {
+        err("keine Session im Flash");
+        return;
+      }
+      file = name;
+    }
+    if (trackLog.dump(file, Serial)) {
       ok();
     } else {
-      err("Datei nicht gefunden oder ungültig");
+      Serial.printf("ERROR: Session \"%s\" nicht gefunden oder ungültig. Vorhanden:\r\n", file);
+      trackLog.list(Serial);
     }
   } else if (strcmp(cmd, "AT+LOGDEL") == 0) {
     if (!val || !*val) {

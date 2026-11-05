@@ -46,6 +46,7 @@ class TrackLog {
 
   void list(Print& out);
   bool dump(const char* name, Print& out);  // als CSV
+  bool latestName(char* out, size_t len);   // neueste Session (ohne führenden '/')
   bool remove(const char* name);
   uint32_t removeAll();
 

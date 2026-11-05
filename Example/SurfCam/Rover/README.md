@@ -73,7 +73,7 @@ Unter 3,3 V Akkuspannung (10 s lang) schaltet sich der Rover selbst ab.
 | `AT+NMEA=<0\|1>` | NMEA-Rohdaten anzeigen (nicht gespeichert) | 0 |
 | `AT+GNSS=<befehl>` | Befehl ans L76K, ohne `$` und Prüfsumme, z. B. `AT+GNSS=PCAS06,0` | |
 | `AT+LOG` | Sessions im Flash auflisten | |
-| `AT+LOGDUMP=<datei>` | Session als CSV ausgeben | |
+| `AT+LOGDUMP` / `AT+LOGDUMP=<datei>` | neueste bzw. angegebene Session als CSV ausgeben (Name aus `AT+LOG`, z. B. `261105_214349.trk`) | |
 | `AT+LOGDEL=<datei>` / `AT+LOGDEL=ALL` | Session(s) löschen | |
 | `AT+SLEEP` | Ausschalten | |
 | `ATZ` | Neustart | |
@@ -92,7 +92,15 @@ Jede gültige Position landet im Flash (LittleFS, ca. 1,4 MB), eine Datei pro Se
 
 Wird der Platz knapp, wird die älteste Session gelöscht. Die laufende Session wird nie gelöscht; ist nur noch sie übrig, stoppt die Aufzeichnung.
 
-**Auslesen:** `AT+LOG`, dann `AT+LOGDUMP=<datei>` und die Ausgabe im seriellen Monitor speichern. CSV-Spalten:
+**Auslesen:** `AT+LOG` zeigt die Sessions, `AT+LOGDUMP` gibt die neueste als CSV im Monitor aus (`AT+LOGDUMP=<datei>` eine bestimmte). Der Parameter ist der Name der Datei im Flash, nicht eine Zieldatei.
+
+In eine Datei auf dem Mac speichern: Monitor mit Mitschnitt starten, `AT+LOGDUMP` eingeben, Monitor beenden. Die Datei `platformio-device-monitor-*.log` liegt im aktuellen Ordner; die CSV-Zeilen beginnen nach der Zeile `date,utc,...`.
+
+```
+pio device monitor -f send_on_enter -f log2file
+```
+
+CSV-Spalten:
 
 ```
 date,utc,time_ms,lat,lon,speed_mps,course_deg,sats,fix,hdop,battery_mv

@@ -68,6 +68,23 @@ bool TrackLog::deleteOldest() {
   return LittleFS.remove(oldest);
 }
 
+bool TrackLog::latestName(char* out, size_t len) {
+  if (!ok_ || len == 0) return false;
+  File root = LittleFS.open("/");
+  if (!root) return false;
+  char newest[32] = "";
+  for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+    char path[32];
+    normalize(f.name(), path, sizeof(path));
+    // Dateinamen sind Zeitstempel -> alphabetisch grösster ist der neueste
+    if (isTrackFile(path) && strcmp(path, newest) > 0) snprintf(newest, sizeof(newest), "%s", path);
+  }
+  root.close();
+  if (newest[0] == '\0') return false;
+  snprintf(out, len, "%s", newest + 1);
+  return true;
+}
+
 bool TrackLog::ensureSpace(size_t needBytes) {
   while (freeBytes() < needBytes + kMinFreeBytes) {
     if (!deleteOldest()) return false;
