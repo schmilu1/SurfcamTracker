@@ -17,6 +17,7 @@ constexpr int LORA_MOSI = 27;
 constexpr int LORA_NSS = 18;
 constexpr int LORA_RST = 23;
 constexpr int LORA_DIO0 = 26;
+constexpr int LORA_DIO1 = 33;
 
 constexpr int LED_RED = 13;
 constexpr int LED_BLUE = 2;

@@ -1,4 +1,4 @@
-// LoRa Punkt-zu-Punkt über den SX1276 (Bibliothek "LoRa" von Sandeep Mistry)
+// LoRa Punkt-zu-Punkt über den SX1276 (Bibliothek RadioLib)
 // mit Einhaltung des Duty Cycle (10 % im Band 869.40-869.65 MHz, sonst 1 %).
 #pragma once
 

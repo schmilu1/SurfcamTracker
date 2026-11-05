@@ -103,20 +103,22 @@ Binärformat ([tracklog.h](tracklog.h), Little Endian): 12-Byte-Kopf (`"SCTL"`, 
 
 ## Build
 
-### Arduino IDE
+### PlatformIO (VS-Code-Erweiterung oder CLI)
 
-1. Boardverwaltung: **esp32 by Espressif Systems 3.3.12** (getestet wird gegen diese Version; nicht die Vorabversion 4.0.0-RC1)
-2. Board **ESP32 PICO-D4**, Flash Mode **DIO**, Partition Scheme **Default 4MB with spiffs**
-3. Bibliothek **LoRa** von Sandeep Mistry installieren
-4. `Rover.ino` öffnen und hochladen
-
-### PlatformIO
+Lädt Plattform, Core 3.3.12 und RadioLib 7.8.1 automatisch.
 
 ```
 pio run -e trackerd -t upload
 pio device monitor
 pio test -e native        # 25 Unit-Tests, ohne Hardware
 ```
+
+### Arduino IDE (alternativ)
+
+1. Boardverwaltung: **esp32 by Espressif Systems 3.3.12** (getestet wird gegen diese Version; nicht die Vorabversion 4.0.0-RC1)
+2. Board **ESP32 PICO-D4**, Flash Mode **DIO**, Partition Scheme **Default 4MB with spiffs**
+3. Bibliothek **RadioLib 7.8.1** von Jan Gromes installieren
+4. `Rover.ino` öffnen und hochladen
 
 ## Ablauf
 
@@ -139,10 +141,8 @@ Loop ─► NMEA lesen ─► Epoche (RMC+GGA mit gleicher Zeit)
 **Nicht verifiziert:**
 - Feldreihenfolge von `$PCAS03` (RMC+GGA). Ob nur noch RMC und GGA kommen, zeigt `AT+NMEA=1`.
 - Empfang durch das SX1303-Gateway auf 869,525 MHz / 250 kHz und Weitergabe der Rohframes über den ChirpStack Gateway Bridge – wird mit dem Pi-Teil geprüft.
-- Bibliothek „LoRa“ 0.8.0 (letztes Release Dezember 2020) mit Arduino-ESP32 Core 3.3.12. Sie greift nur über SPI auf die Register zu und nutzt keine versionsabhängigen Core-APIs; bekannte Probleme mit Core 3.x habe ich keine gefunden.
-- `platformio/espressif32@8.0.0` (offizielle Plattform mit Core 3.3.12, Oktober 2026) – noch nicht damit gebaut.
 - Aufwecken über IO0 (Boot-Pin) aus dem Deep Sleep. Die Dragino-Firmware nutzt denselben Pin zum Aufwecken.
 - Stromverbrauch: grob geschätzt 50–70 mA im Betrieb (ESP32 bei 80 MHz, GNSS, LoRa mit 10 % Sendezeit). Laufzeit daher vor dem ersten Einsatz messen.
 - Akkuspannung: Teiler 100k/470k laut Schaltplan, nicht kalibriert.
 
-Die Firmware ist **noch nicht auf dem Gerät getestet**. Geprüft sind die Unit-Tests (25/25) und eine Syntaxprüfung aller Module mit clang.
+Die Firmware ist **noch nicht auf dem Gerät getestet**. Geprüft sind: Build mit `platformio/espressif32@8.0.0` (Arduino-ESP32 3.3.12) und RadioLib 7.8.1 ohne Warnungen (RAM 8,4 %, Flash 35,6 %) sowie die Unit-Tests (25/25). Beim Start vergleicht die Firmware ihre Sendezeit-Berechnung mit `getTimeOnAir()` von RadioLib und warnt bei mehr als 5 % Abweichung.
