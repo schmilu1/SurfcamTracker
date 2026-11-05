@@ -105,7 +105,7 @@ Binärformat ([tracklog.h](tracklog.h), Little Endian): 12-Byte-Kopf (`"SCTL"`, 
 
 ### Arduino IDE
 
-1. Boardverwaltung: **esp32 by Espressif Systems** (2.0.x oder 3.x)
+1. Boardverwaltung: **esp32 by Espressif Systems 3.3.12** (getestet wird gegen diese Version; nicht die Vorabversion 4.0.0-RC1)
 2. Board **ESP32 PICO-D4**, Flash Mode **DIO**, Partition Scheme **Default 4MB with spiffs**
 3. Bibliothek **LoRa** von Sandeep Mistry installieren
 4. `Rover.ino` öffnen und hochladen
@@ -139,7 +139,8 @@ Loop ─► NMEA lesen ─► Epoche (RMC+GGA mit gleicher Zeit)
 **Nicht verifiziert:**
 - Feldreihenfolge von `$PCAS03` (RMC+GGA). Ob nur noch RMC und GGA kommen, zeigt `AT+NMEA=1`.
 - Empfang durch das SX1303-Gateway auf 869,525 MHz / 250 kHz und Weitergabe der Rohframes über den ChirpStack Gateway Bridge – wird mit dem Pi-Teil geprüft.
-- Bibliothek „LoRa“ 0.8.0 mit Arduino-ESP32 Core 3.x; `espressif32@6.9.0` in PlatformIO.
+- Bibliothek „LoRa“ 0.8.0 (letztes Release Dezember 2020) mit Arduino-ESP32 Core 3.3.12. Sie greift nur über SPI auf die Register zu und nutzt keine versionsabhängigen Core-APIs; bekannte Probleme mit Core 3.x habe ich keine gefunden.
+- `platformio/espressif32@8.0.0` (offizielle Plattform mit Core 3.3.12, Oktober 2026) – noch nicht damit gebaut.
 - Aufwecken über IO0 (Boot-Pin) aus dem Deep Sleep. Die Dragino-Firmware nutzt denselben Pin zum Aufwecken.
 - Stromverbrauch: grob geschätzt 50–70 mA im Betrieb (ESP32 bei 80 MHz, GNSS, LoRa mit 10 % Sendezeit). Laufzeit daher vor dem ersten Einsatz messen.
 - Akkuspannung: Teiler 100k/470k laut Schaltplan, nicht kalibriert.
