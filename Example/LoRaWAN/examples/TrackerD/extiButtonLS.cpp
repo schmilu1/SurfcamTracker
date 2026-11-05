@@ -172,7 +172,6 @@ void attachMultiClick1()
             SLEEP_START1 = millis();
           }   
           Serial.printf("SLEEP\r\n");          
-          esp_deep_sleep_start();   
           GXHT3x_LowPower();
           myIMU2.imu_power_down();  
           sys.LORA_EnterSleepMode();
