@@ -90,6 +90,38 @@ void ARDUINO_ISR_ATTR keepTimer()
   //xSemaphoreGiveFromISR(timerSemaphore, NULL);
 }
 
+// GPS-Timeout (Arduino-ESP32 Core 3.x): timerBegin() erwartet die Frequenz in Hz.
+// 1 MHz -> 1 Tick = 1 us, Positioning_time ist in ms.
+static void start_gps_timeout(void)
+{
+  if(sys.Positioning_time == 0)
+  {
+    return;
+  }
+  if(timer != NULL)
+  {
+    timerEnd(timer);
+    timer = NULL;
+  }
+  timer = timerBegin(1000000);
+  if(timer == NULL)
+  {
+    Serial.println("GPS timer init failed");
+    return;
+  }
+  timerAttachInterrupt(timer, &onTimer);
+  timerAlarm(timer, (uint64_t)sys.Positioning_time * 1000ULL, false, 0);
+}
+
+static void stop_gps_timeout(void)
+{
+  if(timer != NULL)
+  {
+    timerEnd(timer);
+    timer = NULL;
+  }
+}
+
 void LoraWANPrintLMICOpmode(void)
 {
     Serial.print(F("LMIC.opmode: "));
@@ -1345,15 +1377,7 @@ void setup() {
       GPS_Init();
       GPS_boot();
       Serial.println("Start searching for GPS...");
-      if(sys.Positioning_time != 0)
-      {
-      //定时器
-        timerSemaphore = xSemaphoreCreateBinary();
-        timer = timerBegin(80); 
-        timerAttachInterrupt(timer, &onTimer);
-        timerAlarm(timer, sys.Positioning_time*1000,true,0);
-        timerStart(timer);
-      }         
+      start_gps_timeout();
     }
     // else if(sys.sensor_mode == 2|| sys.sensor_mode == 3 || bg_mode == 2 || bg_mode == 3)
     // {
@@ -1501,10 +1525,7 @@ void gps_send(void)
     {
       os_JOINED_flag = 0;
       sys.gps_work_flag = false;
-      if(sys.Positioning_time != 0)
-      {
-        timerEnd(timer);
-      }
+      stop_gps_timeout();
     }
     else if(sys.loggpsdata_send == 1 || sys.ble_flag ==1)
     {
@@ -2086,16 +2107,8 @@ void alarm_state(void)
         GPS_Init();
         GPS_boot();
         Serial.println("Start searching for GPS...");
-        if(sys.Positioning_time != 0)
-        {
-          //定时器
-          timerSemaphore = xSemaphoreCreateBinary();
-          timer = timerBegin(80);
-          timerAttachInterrupt(timer, &onTimer);
-          timerAlarm(timer, sys.Positioning_time*1000,true,0);
-          timerStart(timer);
-        }
-        sys.exti_flag = 4; 
+        start_gps_timeout();
+        sys.exti_flag = 4;
       }
       else if(sys.sensor_mode == 2 || sys.sensor_mode == 3)
       {
@@ -2139,15 +2152,7 @@ void downlink_alarm_send(void)
     GPS_Init();
     GPS_boot();
     Serial.println("Start searching for GPS...");
-    if(sys.Positioning_time != 0)
-    {
-      //定时器
-      timerSemaphore = xSemaphoreCreateBinary();
-      timer = timerBegin(80);
-      timerAttachInterrupt(timer, &onTimer);
-      timerAlarm(timer, sys.Positioning_time*1000,true,0);
-      timerStart(timer);
-    }
+    start_gps_timeout();
   }
   else if(sys.sensor_mode == 2 || sys.sensor_mode == 3)
   {
