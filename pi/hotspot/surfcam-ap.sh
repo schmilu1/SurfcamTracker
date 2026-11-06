@@ -29,8 +29,9 @@ if ! $IW dev "$AP" info >/dev/null 2>&1; then
   log "lege $AP an"
   $IW dev "$STA" interface add "$AP" type __ap || exit 1
   mac=$(cat /sys/class/net/$STA/address)
-  # eigene MAC-Adresse: Bit "lokal verwaltet" im ersten Byte umschalten
-  ip link set "$AP" address "$(printf %02x $((0x${mac:0:2} ^ 0x02)))${mac:2}"
+  # eigene MAC-Adresse: Bit "lokal verwaltet" im ersten Byte und letztes Bit umschalten
+  # (nur das erste Bit ergäbe dieselbe Adresse wie die P2P-Schnittstelle des Chips)
+  ip link set "$AP" address "$(printf %02x $((0x${mac:0:2} ^ 0x02)))${mac:2:12}$(printf %02x $((0x${mac:15:2} ^ 0x01)))"
   sleep 2
 fi
 
@@ -78,8 +79,11 @@ else
   ch=$FALLBACK_CH
 fi
 
+# Der Chip nimmt den Hotspot bei einem Kanalwechsel des Clients mit, die Einstellung in
+# NetworkManager bleibt aber alt: deshalb beide vergleichen
 cur=$($IW dev "$AP" info 2>/dev/null | awk '/channel/ { print $2 }')
-if ap_active && [ "$cur" = "$ch" ]; then
+conf=$(nmcli -g 802-11-wireless.channel con show "$CON")
+if ap_active && [ "$cur" = "$ch" ] && [ "$conf" = "$ch" ]; then
   exit 0
 fi
 log "Hotspot auf Kanal $ch ($([ $band = a ] && echo 5 || echo 2,4) GHz)"
