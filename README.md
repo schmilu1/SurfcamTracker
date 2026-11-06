@@ -19,6 +19,8 @@ L76K GNSS, 5 Hz                  SX1302-HAT ─► lora_pkt_fwd ─► ChirpStac
 | [firmware/l76k_probe](firmware/l76k_probe) | Test-Sketch: erkennt das GNSS-Modul und misst die erreichbare Update-Rate |
 | [docs/gateway.md](docs/gateway.md) | Kanalplan und Konfiguration des Gateways (Waveshare SX1302 HAT), Empfang prüfen |
 | [docs/hardware](docs/hardware) | Schaltplan, Layout und Bestückungsplan TrackerD v1.2 (Dragino) |
+| [pi/testgui](pi/testgui) | **Test-GUI auf dem Pi** (Port 8080): Live-Daten, Tracker per USB einstellen, Log herunterladen, Funkband umschalten |
+| [tools/rangetest](tools/rangetest) | Reichweitentest auf dem Pi: Paketverlust, RSSI, SNR, Entfernung, CSV |
 | [tools/openocd](tools/openocd) | OpenOCD-Konfiguration für JTAG-Debugging über einen FTDI-Adapter |
 
 Der Raspberry-Pi-Dienst (Filter, Geometrie, Bildausschnitt, Ringpuffer) folgt.
@@ -45,7 +47,8 @@ Details, Bedienung, AT-Befehle und Messergebnisse: [firmware/rover/README.md](fi
 
 ## Stand
 
-- Rover-Firmware läuft auf dem Gerät (5 Hz, Log, Funk); Empfang über das Gateway bestätigt (RSSI −22 dBm aus dem Haus).
+- Rover-Firmware 0.4 läuft auf dem Gerät: GNSS 10 Hz, Funk Band A (3,3 Pakete/s) oder B (10 Pakete/s), Bewegungssensor, Log als Ringpuffer. Empfang über das Gateway bestätigt.
+- Test-GUI auf dem Pi: `http://mildersurf.local:8080`.
 - Offen: Reichweitentest am Strand, Raspberry-Pi-Dienst, Video-Ringpuffer.
 
 ## Herkunft und Lizenz

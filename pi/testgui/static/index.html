@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SurfCam Test</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root {
+  --bg: #f4f6f8; --card: #ffffff; --text: #1b2430; --muted: #66727f; --line: #dde3e9;
+  --accent: #0b6bcb; --ok: #1a7f37; --warn: #b26a00; --bad: #c62828; --input: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11161c; --card: #1a2129; --text: #e6edf3; --muted: #8b98a5; --line: #2b3540;
+    --accent: #4aa3ff; --ok: #3fb950; --warn: #d29922; --bad: #f85149; --input: #0f141a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+header { position: sticky; top: 0; z-index: 1000; background: var(--card); border-bottom: 1px solid var(--line); }
+.bar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; flex-wrap: wrap; }
+.bar h1 { font-size: 17px; margin: 0; }
+.pills { display: flex; gap: 6px; flex-wrap: wrap; font-size: 13px; }
+.pill { padding: 2px 8px; border-radius: 10px; background: var(--bg); color: var(--muted); white-space: nowrap; }
+.pill.ok { color: var(--ok); } .pill.bad { color: var(--bad); } .pill.warn { color: var(--warn); }
+nav { display: flex; padding: 0 8px; overflow-x: auto; }
+nav button { background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted);
+  padding: 8px 12px; font-size: 15px; cursor: pointer; }
+nav button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+main { padding: 12px 16px 40px; max-width: 1100px; margin: 0 auto; }
+section { display: none; } section.active { display: block; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.card h2 { font-size: 14px; margin: 0 0 8px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.kv { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+.kv .k { font-size: 12px; color: var(--muted); }
+.kv .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kv .s { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#map { height: 320px; border-radius: 8px; }
+#mapOff { color: var(--muted); font-size: 13px; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
+.chart { background: var(--bg); border-radius: 8px; padding: 6px 8px; }
+.chart .t { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
+canvas { width: 100%; height: 90px; display: block; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+td.num { font-variant-numeric: tabular-nums; }
+.form { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+label { display: block; font-size: 13px; color: var(--muted); }
+input, select { width: 100%; padding: 7px 8px; margin-top: 3px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--input); color: var(--text); font-size: 15px; }
+input.changed, select.changed { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+button.b { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg);
+  color: var(--text); font-size: 14px; cursor: pointer; }
+button.b.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.b.danger { color: var(--bad); }
+button.b:disabled { opacity: .5; cursor: default; }
+a.b { text-decoration: none; display: inline-block; color: var(--text); }
+pre#console { background: #0d1117; color: #c9d1d9; border-radius: 8px; padding: 8px; height: 260px; overflow: auto;
+  font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace; margin: 0; white-space: pre-wrap; word-break: break-all; }
+.row { display: flex; gap: 8px; margin-top: 8px; }
+.row input { margin: 0; }
+.msg { font-size: 13px; margin-top: 8px; min-height: 18px; }
+.msg.ok { color: var(--ok); } .msg.bad { color: var(--bad); }
+.notice { padding: 10px 12px; border-radius: 8px; background: var(--bg); color: var(--muted); }
+.check { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 14px; margin-top: 8px; }
+.check input { width: auto; margin: 0; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>SurfCam Test</h1>
+    <div class="pills">
+      <span class="pill" id="pMqtt">MQTT …</span>
+      <span class="pill" id="pRx">keine Pakete</span>
+      <span class="pill" id="pTracker">Tracker …</span>
+      <span class="pill" id="pGw">Gateway …</span>
+    </div>
+  </div>
+  <nav>
+    <button data-tab="live" class="active">Live</button>
+    <button data-tab="tracker">Tracker</button>
+    <button data-tab="log">Log</button>
+    <button data-tab="gateway">Gateway</button>
+  </nav>
+</header>
+<main>
+
+<section id="live" class="active">
+  <div class="card">
+    <h2>Letztes Paket</h2>
+    <div class="grid">
+      <div class="kv"><div class="k">Geschwindigkeit</div><div class="v" id="lSpeed">–</div><div class="s" id="lCourse"></div></div>
+      <div class="kv"><div class="k">Fix</div><div class="v" id="lFix">–</div><div class="s" id="lSats"></div></div>
+      <div class="kv"><div class="k">Bewegung (RMS)</div><div class="v" id="lMot">–</div><div class="s" id="lMot2"></div></div>
+      <div class="kv"><div class="k">Empfang</div><div class="v" id="lRssi">–</div><div class="s" id="lSnr"></div></div>
+      <div class="kv"><div class="k">Pakete (60 s)</div><div class="v" id="lRate">–</div><div class="s" id="lLoss"></div></div>
+      <div class="kv"><div class="k">Akku</div><div class="v" id="lBatt">–</div><div class="s" id="lAge"></div></div>
+    </div>
+    <div class="s hint" id="lPos"></div>
+  </div>
+  <div class="card">
+    <h2>Karte (letzte 5 min)</h2>
+    <div id="map"></div>
+    <div id="mapOff" hidden>Karte nicht verfügbar (keine Internetverbindung). Position siehe oben.</div>
+  </div>
+  <div class="card">
+    <h2>Verlauf (2 min)</h2>
+    <div class="charts">
+      <div class="chart"><div class="t"><span>Geschwindigkeit km/h</span><span id="cSpeedV"></span></div><canvas id="cSpeed"></canvas></div>
+      <div class="chart"><div class="t"><span>Bewegung RMS g</span><span id="cMotV"></span></div><canvas id="cMot"></canvas></div>
+      <div class="chart"><div class="t"><span>RSSI dBm</span><span id="cRssiV"></span></div><canvas id="cRssi"></canvas></div>
+    </div>
+    <div class="btns"><a class="b" href="/api/packets.csv">Empfangene Pakete als CSV</a></div>
+  </div>
+</section>
+
+<section id="tracker">
+  <div class="card" id="tNotice"><div class="notice">Tracker per USB an den Pi anschliessen. Die Verbindung wird automatisch erkannt.</div></div>
+  <div id="tBody" hidden>
+    <div class="card">
+      <h2>Status</h2>
+      <div class="grid" id="tStatus"></div>
+    </div>
+    <div class="card">
+      <h2>Einstellungen</h2>
+      <div class="form">
+        <div><label>Funkband
+          <select data-set="band"><option value="A">A – 869,525 MHz, 17 dBm, 10 %</option><option value="B">B – 869,85 MHz, 7 dBm, ohne Grenze</option><option value="-">– eigene Werte</option></select></label>
+          <label class="check"><input type="checkbox" id="bandGw" checked> Gateway mitumschalten</label></div>
+        <div><label>GNSS-Rate
+          <select data-set="rate" data-cmd="AT+RATE"><option>1</option><option>2</option><option>4</option><option>5</option><option>10</option></select></label>
+          <div class="hint">Hz</div></div>
+        <div><label>Sendeabstand
+          <input type="number" min="0" max="60000" data-set="txint" data-cmd="AT+TXINT"></label>
+          <div class="hint">ms, 0 = automatisch (kürzester erlaubter Abstand)</div></div>
+        <div><label>Sendeleistung
+          <input type="number" min="2" max="20" data-set="txp" data-cmd="AT+TXP"></label>
+          <div class="hint">dBm; Band B ohne Grenze nur bis 7 dBm</div></div>
+        <div><label>Frequenz
+          <input type="number" min="863000000" max="870000000" step="25000" data-set="freq" data-cmd="AT+FREQ"></label>
+          <div class="hint">Hz</div></div>
+        <div><label>Spreading Factor
+          <select data-set="sf" data-cmd="AT+SF"><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></label>
+          <div class="hint">Gateway empfängt nur SF7 (Einzelkanal)</div></div>
+        <div><label>Bandbreite
+          <select data-set="bw" data-cmd="AT+BW"><option value="125000">125 kHz</option><option value="250000">250 kHz</option><option value="500000">500 kHz</option></select></label></div>
+        <div><label>Geräte-ID
+          <input type="number" min="0" max="31" data-set="id" data-cmd="AT+ID"></label></div>
+        <div><label>Lograte
+          <select data-set="lograte" data-cmd="AT+LOGRATE"><option value="0">aus</option><option>1</option><option>2</option><option>4</option><option>5</option><option>10</option></select></label>
+          <div class="hint">Hz</div></div>
+        <div><label>Bewegung loggen
+          <select data-set="logmotion" data-cmd="AT+LOGMOTION"><option value="1">ja</option><option value="0">nein</option></select></label>
+          <div class="hint">gilt ab der nächsten Session</div></div>
+        <div><label>Status-LEDs
+          <select data-set="led" data-cmd="AT+LED"><option value="1">an</option><option value="0">aus</option></select></label></div>
+      </div>
+      <div class="btns">
+        <button class="b primary" id="saveBtn" disabled>Änderungen übernehmen</button>
+        <button class="b" id="resetForm">Zurücksetzen</button>
+      </div>
+      <div class="msg" id="setMsg"></div>
+    </div>
+    <div class="card">
+      <h2>Aktionen</h2>
+      <div class="btns">
+        <button class="b" data-cmd="ATI">Status (ATI)</button>
+        <button class="b" data-cmd="AT+MOTION">Bewegung live (10 s)</button>
+        <button class="b" data-cmd="ATZ">Neustart</button>
+        <button class="b danger" data-cmd="AT+SLEEP" data-confirm="Tracker ausschalten? Einschalten danach nur per Taste (1 s halten) oder USB-Reset.">Ausschalten</button>
+        <button class="b danger" data-cmd="AT+FDR" data-confirm="Alle Einstellungen auf Werkseinstellungen zurücksetzen?">Werkseinstellungen</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Konsole</h2>
+    <pre id="console"></pre>
+    <div class="row"><input id="cmdIn" placeholder="AT-Befehl, z. B. AT+HELP" autocapitalize="characters" autocomplete="off"><button class="b" id="cmdSend">Senden</button></div>
+  </div>
+</section>
+
+<section id="log">
+  <div class="card">
+    <h2>Sessions im Tracker</h2>
+    <div id="logNotice" class="notice">Tracker per USB an den Pi anschliessen.</div>
+    <table id="logTable" hidden>
+      <thead><tr><th>Session (UTC)</th><th>Positionen</th><th>Grösse</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="hint" id="logSummary"></div>
+    <div class="btns">
+      <button class="b" id="logRefresh">Aktualisieren</button>
+      <button class="b danger" id="logDelAll">Alle löschen</button>
+    </div>
+    <div class="msg" id="logMsg"></div>
+    <div class="hint">Der Download läuft über USB mit ≈ 100 Positionen/s: 1 h bei 5 Hz dauert ≈ 3 min.</div>
+  </div>
+</section>
+
+<section id="gateway">
+  <div class="card">
+    <h2>Gateway</h2>
+    <div class="grid">
+      <div class="kv"><div class="k">Funkband</div><div class="v" id="gBand">–</div></div>
+      <div class="kv"><div class="k">Paket-Forwarder</div><div class="v" id="gSvc">–</div></div>
+      <div class="kv"><div class="k">Fremde LoRa-Pakete</div><div class="v" id="gForeign">–</div></div>
+    </div>
+    <div class="btns">
+      <button class="b" data-gw="A">Gateway auf Band A</button>
+      <button class="b" data-gw="B">Gateway auf Band B</button>
+    </div>
+    <div class="hint">Nur das Gateway. Tracker und Gateway zusammen umschalten: Tab Tracker, Funkband.</div>
+    <div class="msg" id="gwMsg"></div>
+  </div>
+</section>
+
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const state = { packets: [], tracker: null, gateway: null, mqtt: null };
+const FIX = ["kein Fix", "GNSS", "DGNSS", "geschätzt"];
+
+// ---------------------------------------------------------------- Tabs
+$$("nav button").forEach(b => b.onclick = () => {
+  $$("nav button").forEach(x => x.classList.toggle("active", x === b));
+  $$("main section").forEach(s => s.classList.toggle("active", s.id === b.dataset.tab));
+  if (b.dataset.tab === "live" && map) setTimeout(() => map.invalidateSize(), 50);
+  if (b.dataset.tab === "log") loadLogs();
+  try { localStorage.setItem("tab", b.dataset.tab); } catch (e) {}
+});
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const r = await fetch(path, opt);
+  const j = await r.json().catch(() => ({ ok: false, error: "HTTP " + r.status }));
+  if (!r.ok && j.ok === undefined) j.ok = false;
+  return j;
+}
+function msg(el, text, ok) { el.textContent = text; el.className = "msg " + (ok ? "ok" : "bad"); }
+const fmt = (v, d = 1) => v === null || v === undefined ? "–" : Number(v).toFixed(d);
+
+// ---------------------------------------------------------------- Karte
+let map = null, trackLine = null, marker = null;
+if (window.L) {
+  map = L.map("map", { zoomControl: true }).setView([46.8, 8.2], 7);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+  trackLine = L.polyline([], { color: "#0b6bcb", weight: 3 }).addTo(map);
+  marker = L.circleMarker([0, 0], { radius: 7, color: "#fff", weight: 2, fillColor: "#e53935", fillOpacity: 1 });
+} else {
+  $("#map").hidden = true; $("#mapOff").hidden = false;
+}
+let mapFitted = false;
+
+// ---------------------------------------------------------------- Live
+function onPacket(p) {
+  state.packets.push(p);
+  const cutoff = Date.now() / 1000 - 600;
+  while (state.packets.length && state.packets[0].rx < cutoff) state.packets.shift();
+}
+
+function renderLive() {
+  const now = Date.now() / 1000;
+  const ps = state.packets;
+  const last = ps[ps.length - 1];
+  const w = ps.filter(p => p.rx >= now - 60);
+  const lost = w.reduce((a, p) => a + (p.lost || 0), 0);
+  $("#lRate").textContent = w.length ? (w.length / 60).toFixed(1) + "/s" : "–";
+  $("#lLoss").textContent = w.length ? `Verlust ${(100 * lost / (w.length + lost)).toFixed(1)} %` : "";
+  const pRx = $("#pRx");
+  if (!last) { pRx.textContent = "keine Pakete"; pRx.className = "pill"; }
+  else {
+    const age = now - last.rx;
+    pRx.textContent = age < 5 ? `Empfang · Band ${last.band}` : `letztes Paket vor ${age < 120 ? age.toFixed(0) + " s" : (age / 60).toFixed(0) + " min"}`;
+    pRx.className = "pill " + (age < 5 ? "ok" : age < 30 ? "warn" : "bad");
+  }
+  if (!last) return;
+  $("#lAge").textContent = `vor ${(now - last.rx).toFixed(1)} s · Seq ${last.seq}`;
+  $("#lSpeed").textContent = last.fix ? `${(last.speed * 3.6).toFixed(1)} km/h` : "–";
+  $("#lCourse").textContent = last.fix ? `${last.speed.toFixed(1)} m/s · Kurs ${last.course.toFixed(0)}°` : "";
+  $("#lFix").textContent = FIX[last.fix] || last.fix;
+  $("#lSats").textContent = `${last.sats} Satelliten · HDOP ${last.hdop.toFixed(1)}`;
+  $("#lMot").textContent = last.motion_rms === null ? "–" : `${last.motion_rms.toFixed(2)} g`;
+  $("#lMot2").textContent = last.motion_rms === null ? "kein Sensor" : `Spitze ${last.motion_peak.toFixed(1)} g · Neigung ${last.tilt}°`;
+  $("#lRssi").textContent = last.rssi === null ? "–" : `${last.rssi} dBm`;
+  $("#lSnr").textContent = last.snr === null ? "" : `SNR ${last.snr.toFixed(1)} dB · ${(last.freq / 1e6).toFixed(3)} MHz`;
+  $("#lBatt").textContent = last.battery_mv ? `${(last.battery_mv / 1000).toFixed(2)} V` : "–";
+  $("#lPos").textContent = last.fix ? `Position ${last.lat.toFixed(6)}, ${last.lon.toFixed(6)} · Gerät ${last.id}` : `Gerät ${last.id}, noch kein Fix`;
+
+  if (map) {
+    const pts = ps.filter(p => p.fix && p.rx >= now - 300).map(p => [p.lat, p.lon]);
+    trackLine.setLatLngs(pts);
+    if (pts.length) {
+      marker.setLatLng(pts[pts.length - 1]);
+      if (!map.hasLayer(marker)) marker.addTo(map);
+      if (!mapFitted) { map.setView(pts[pts.length - 1], 17); mapFitted = true; }
+    }
+  }
+  const recent = ps.filter(p => p.rx >= now - 120);
+  chart("cSpeed", recent, p => p.fix ? p.speed * 3.6 : null, now, 1, 10, 0);
+  chart("cMot", recent, p => p.motion_rms, now, 2, 0.5, 0);
+  chart("cRssi", recent, p => p.rssi, now, 0, 20, null);
+}
+
+// minSpan: kleinste dargestellte Spanne (kleine Schwankungen nicht aufblasen); floor: Untergrenze (z. B. 0)
+function chart(id, ps, f, now, dec, minSpan, floor) {
+  const c = $("#" + id), dpr = window.devicePixelRatio || 1;
+  const W = c.clientWidth, H = c.clientHeight;
+  if (c.width !== W * dpr) { c.width = W * dpr; c.height = H * dpr; }
+  const g = c.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const pts = ps.map(p => [p.rx, f(p)]).filter(x => x[1] !== null && x[1] !== undefined);
+  $("#" + id + "V").textContent = pts.length ? Number(pts[pts.length - 1][1]).toFixed(dec) : "";
+  if (pts.length < 2) return;
+  let lo = Math.min(...pts.map(x => x[1])), hi = Math.max(...pts.map(x => x[1]));
+  if (hi - lo < minSpan) { const mid = (hi + lo) / 2; lo = mid - minSpan / 2; hi = mid + minSpan / 2; }
+  const pad = (hi - lo) * 0.1; lo -= pad; hi += pad;
+  if (floor !== null && lo < floor) { hi += floor - lo; lo = floor; }
+  const css = getComputedStyle(document.documentElement);
+  g.strokeStyle = css.getPropertyValue("--line"); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, H - 0.5); g.lineTo(W, H - 0.5); g.stroke();
+  g.fillStyle = css.getPropertyValue("--muted"); g.font = "10px sans-serif";
+  g.fillText(hi.toFixed(dec), 2, 10); g.fillText(lo.toFixed(dec), 2, H - 3);
+  g.strokeStyle = css.getPropertyValue("--accent"); g.lineWidth = 1.5;
+  g.beginPath();
+  let prev = null;
+  for (const [t, v] of pts) {
+    const x = W - (now - t) / 120 * W, y = H - (v - lo) / (hi - lo) * H;
+    if (prev && t - prev > 3) g.moveTo(x, y); else g.lineTo(x, y);
+    prev = t;
+  }
+  g.stroke();
+}
+
+// ---------------------------------------------------------------- Tracker
+function renderTracker() {
+  const t = state.tracker;
+  const pill = $("#pTracker");
+  const con = t && t.connected;
+  pill.textContent = con ? "Tracker USB" : "Tracker nicht am USB";
+  pill.className = "pill " + (con ? "ok" : "");
+  $("#tNotice").hidden = !!con;
+  $("#tBody").hidden = !con;
+  $("#logNotice").hidden = !!con;
+  const s = t && t.status;
+  if (!s) { $("#tStatus").innerHTML = `<div class="kv"><div class="k">Status</div><div class="v">…</div><div class="s">wird gelesen</div></div>`; return; }
+  const kv = (k, v, sub = "") => `<div class="kv"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  const g = s.gnss, r = s.radio, m = s.motion, l = s.log;
+  $("#tStatus").innerHTML =
+    kv("Firmware", s.fw, `Laufzeit ${Math.floor(s.uptime_s / 60)} min · Port ${t.port}`) +
+    kv("GNSS", g.fix ? `Fix, ${g.sats} Sat.` : (g.alive ? "kein Fix" : "keine Daten"), `${g.hz.toFixed(1)} Hz · HDOP ${g.hdop.toFixed(1)}`) +
+    kv("Funk", `Band ${s.settings.band}`, `${(s.settings.freq / 1e6).toFixed(3)} MHz · ${s.settings.txp} dBm · ${r.interval_ms} ms`) +
+    kv("Gesendet", r.sent, `Fehler ${r.failed} · Ø Sendezeit ${r.avg_duty.toFixed(1)} %`) +
+    kv("Bewegung", m.ok ? `${m.rms_g.toFixed(2)} g` : "kein Sensor", m.ok ? `Spitze ${m.peak_g.toFixed(2)} g · Neigung ${m.tilt}°` : "") +
+    kv("Akku", `${(s.battery_mv / 1000).toFixed(2)} V`) +
+    kv("Log", l.session ? l.records + " Pos." : "keine Session", `${s.settings.lograte} Hz · ${l.free_kb} kB frei`);
+  fillForm(s.settings);
+}
+
+let formBase = null;
+function fillForm(st) {
+  if ($$("[data-set].changed").length) return;  // Eingaben des Benutzers nicht überschreiben
+  formBase = st;
+  $$("[data-set]").forEach(el => { el.value = String(st[el.dataset.set]); });
+  $("#saveBtn").disabled = true;
+}
+$$("[data-set]").forEach(el => el.addEventListener("input", () => {
+  if (!formBase) return;
+  el.classList.toggle("changed", el.value !== String(formBase[el.dataset.set]));
+  $("#saveBtn").disabled = !$$("[data-set].changed").length;
+}));
+$("#resetForm").onclick = () => { $$("[data-set]").forEach(e => e.classList.remove("changed")); if (formBase) fillForm(formBase); };
+$("#saveBtn").onclick = async () => {
+  const el = $("#setMsg"), changed = $$("[data-set].changed");
+  $("#saveBtn").disabled = true;
+  const out = [];
+  let allOk = true;
+  // Band zuerst (setzt Frequenz und Leistung), danach die übrigen Werte
+  changed.sort((a, b) => (a.dataset.set === "band" ? -1 : 0) - (b.dataset.set === "band" ? -1 : 0));
+  for (const e of changed) {
+    let r;
+    if (e.dataset.set === "band") {
+      if (e.value === "-") { out.push("Band: eigene Werte über Frequenz/Leistung einstellen"); continue; }
+      r = await api("/api/gateway/band", { band: e.value, tracker: true, gateway: $("#bandGw").checked });
+    } else {
+      r = await api("/api/tracker/cmd", { cmd: `${e.dataset.cmd}=${e.value}` });
+    }
+    out.push(`${e.dataset.set}: ${r.ok ? "OK" : (r.error || (r.lines || []).slice(-1)[0] || "Fehler")}`);
+    allOk = allOk && r.ok;
+    e.classList.remove("changed");
+  }
+  msg(el, out.join(" · "), allOk);
+  const s = await api("/api/tracker/status", {});
+  if (s.ok) { state.tracker.status = s.status; renderTracker(); }
+};
+$$("button[data-cmd]").forEach(b => b.onclick = async () => {
+  if (b.dataset.confirm && !confirm(b.dataset.confirm)) return;
+  b.disabled = true;
+  await api("/api/tracker/cmd", { cmd: b.dataset.cmd });
+  b.disabled = false;
+});
+async function sendCmd() {
+  const c = $("#cmdIn").value.trim();
+  if (!c) return;
+  $("#cmdIn").value = "";
+  const r = await api("/api/tracker/cmd", { cmd: c });
+  if (!r.ok && r.error) addConsole("! " + r.error);
+}
+$("#cmdSend").onclick = sendCmd;
+$("#cmdIn").onkeydown = e => { if (e.key === "Enter") sendCmd(); };
+function addConsole(line) {
+  const c = $("#console");
+  const atBottom = c.scrollTop + c.clientHeight >= c.scrollHeight - 20;
+  c.textContent += line + "\n";
+  if (c.textContent.length > 60000) c.textContent = c.textContent.slice(-40000);
+  if (atBottom) c.scrollTop = c.scrollHeight;
+}
+
+// ---------------------------------------------------------------- Log
+async function loadLogs() {
+  if (!state.tracker || !state.tracker.connected) return;
+  const r = await api("/api/tracker/logs");
+  const tb = $("#logTable tbody");
+  if (!r.ok) { msg($("#logMsg"), r.error || "Fehler", false); return; }
+  $("#logTable").hidden = !r.sessions.length;
+  $("#logSummary").textContent = r.sessions.length ? r.summary : "Keine Sessions im Flash.";
+  tb.innerHTML = r.sessions.map(s => {
+    const n = s.name, d = `20${n.slice(0, 2)}-${n.slice(2, 4)}-${n.slice(4, 6)} ${n.slice(7, 9)}:${n.slice(9, 11)}:${n.slice(11, 13)}`;
+    return `<tr><td>${d}${s.active ? " (aktiv)" : ""}</td><td class="num">${s.records}</td><td class="num">${(s.bytes / 1024).toFixed(0)} kB</td>
+      <td><a class="b" href="/api/tracker/logs/${n}.csv" download>CSV</a> <button class="b danger" data-del="${n}">Löschen</button></td></tr>`;
+  }).join("");
+  $$("button[data-del]", tb).forEach(b => b.onclick = async () => {
+    if (!confirm(`Session ${b.dataset.del} löschen?`)) return;
+    const r = await api("/api/tracker/cmd", { cmd: "AT+LOGDEL=" + b.dataset.del });
+    msg($("#logMsg"), r.ok ? "gelöscht" : (r.error || "Fehler"), r.ok);
+    loadLogs();
+  });
+}
+$("#logRefresh").onclick = loadLogs;
+$("#logDelAll").onclick = async () => {
+  if (!confirm("Alle Sessions im Tracker löschen?")) return;
+  const r = await api("/api/tracker/cmd", { cmd: "AT+LOGDEL=ALL" });
+  msg($("#logMsg"), r.ok ? (r.lines || []).join(" ") : (r.error || "Fehler"), r.ok);
+  loadLogs();
+};
+
+// ---------------------------------------------------------------- Gateway
+function renderGateway() {
+  const g = state.gateway;
+  if (!g) return;
+  $("#gBand").textContent = g.band || "–";
+  $("#gSvc").textContent = g.service;
+  const p = $("#pGw");
+  p.textContent = `Gateway Band ${g.band || "?"}`;
+  p.className = "pill " + (g.service === "active" ? "ok" : "bad");
+  // Warnung, wenn Tracker und Gateway nicht auf demselben Band sind
+  const tb = state.tracker && state.tracker.status && state.tracker.status.settings.band;
+  if (tb && g.band && tb !== g.band) { p.textContent += ` ≠ Tracker ${tb}`; p.className = "pill warn"; }
+}
+$$("button[data-gw]").forEach(b => b.onclick = async () => {
+  b.disabled = true;
+  const r = await api("/api/gateway/band", { band: b.dataset.gw });
+  msg($("#gwMsg"), r.ok ? `Gateway auf Band ${b.dataset.gw}` : ((r.gateway && r.gateway.output) || r.error || "Fehler"), r.ok);
+  b.disabled = false;
+  state.gateway = await api("/api/gateway"); renderGateway();
+});
+
+// ---------------------------------------------------------------- Daten
+function renderMqtt() {
+  const m = state.mqtt, p = $("#pMqtt");
+  p.textContent = m && m.ok ? "MQTT" : "MQTT getrennt";
+  p.className = "pill " + (m && m.ok ? "ok" : "bad");
+  p.title = m ? m.msg : "";
+}
+async function init() {
+  const s = await api("/api/state?seconds=600");
+  state.packets = s.packets; state.tracker = s.tracker; state.gateway = s.gateway; state.mqtt = s.mqtt;
+  $("#gForeign").textContent = s.foreign;
+  $("#console").textContent = "";
+  s.console.forEach(addConsole);
+  $("#console").scrollTop = $("#console").scrollHeight;
+  renderMqtt(); renderTracker(); renderGateway(); renderLive();
+}
+function connect() {
+  const es = new EventSource("/api/events");
+  es.addEventListener("packet", e => onPacket(JSON.parse(e.data)));
+  es.addEventListener("tracker", e => {
+    const t = JSON.parse(e.data);
+    const was = state.tracker && state.tracker.connected;
+    state.tracker = t; renderTracker(); renderGateway();
+    if (t.connected && !was && $("#log").classList.contains("active")) loadLogs();
+  });
+  es.addEventListener("console", e => addConsole(JSON.parse(e.data)));
+  es.addEventListener("mqtt", e => { state.mqtt = JSON.parse(e.data); renderMqtt(); });
+  es.addEventListener("gateway", e => { state.gateway = JSON.parse(e.data); renderGateway(); });
+  es.addEventListener("logdump", e => {
+    const d = JSON.parse(e.data);
+    msg($("#logMsg"), d.done ? `${d.name}: ${d.lines} Zeilen heruntergeladen` : `${d.name}: ${d.lines} Zeilen …`, d.done ? d.ok : true);
+  });
+  es.onerror = () => { $("#pMqtt").textContent = "Server getrennt"; $("#pMqtt").className = "pill bad"; };
+  es.onopen = () => init();
+}
+// URL-Hash für Tests: #nosse (ohne Live-Verbindung, Daten einmal laden), #tab=tracker
+const hash = new URLSearchParams(location.hash.slice(1));
+if (hash.has("nosse")) init(); else connect();
+let startTab = hash.get("tab");
+try { startTab = startTab || localStorage.getItem("tab"); } catch (e) {}
+if (startTab) $(`nav button[data-tab="${startTab}"]`)?.click();
+setInterval(renderLive, 500);
+setInterval(async () => { state.gateway = await api("/api/gateway"); renderGateway(); }, 10000);
+</script>
+</body>
+</html>

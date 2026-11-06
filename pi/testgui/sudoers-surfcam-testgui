@@ -1,0 +1,3 @@
+# /etc/sudoers.d/surfcam-testgui – erlaubt dem Test-GUI, den Paket-Forwarder nach dem
+# Umschalten des Funkbands neu zu starten (nur dieser eine Befehl, ohne Passwort).
+Milder ALL=(root) NOPASSWD: /usr/bin/systemctl restart lora-pkt-fwd

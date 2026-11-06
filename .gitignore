@@ -8,3 +8,6 @@
 # Editoren / Betriebssystem
 .vscode/
 .DS_Store
+
+# Python
+__pycache__/

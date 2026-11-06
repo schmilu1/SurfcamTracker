@@ -1,0 +1,16 @@
+[Unit]
+Description=SurfCam Test-GUI (Webserver Port 8080)
+After=network-online.target docker.service lora-pkt-fwd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=Milder
+WorkingDirectory=/home/Milder/SurfcamTracker/pi/testgui
+ExecStart=/usr/bin/python3 /home/Milder/SurfcamTracker/pi/testgui/server.py --port 8080
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
