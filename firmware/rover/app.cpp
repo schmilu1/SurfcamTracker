@@ -197,7 +197,13 @@ bool applyRadioSettings() {
 static void maybeSend() {
   const uint32_t now = millis();
   const bool valid = fixValid();
-  const uint32_t interval = valid ? settings.txIntervalMs : timing::NO_FIX_TX_INTERVAL_MS;
+  uint32_t interval = valid ? settings.txIntervalMs : timing::NO_FIX_TX_INTERVAL_MS;
+  // Neue Fixes kommen nur alle 1/Rate s. Ohne Toleranz würde der Sendezeitpunkt bis zu einer
+  // Epoche hinter dem Ziel liegen (bei 10 Hz und 300 ms also 300-400 ms statt gleichmässig 300 ms).
+  if (valid) {
+    const uint32_t halfEpoch = 500 / gnss.rateHz();
+    interval = interval > halfEpoch ? interval - halfEpoch : 0;
+  }
   if (g_txEver && now - g_lastTxMs < interval) return;
   if (valid && !g_newFix) return;  // keine Position doppelt senden
   if (!radio.canSend()) return;    // Duty Cycle

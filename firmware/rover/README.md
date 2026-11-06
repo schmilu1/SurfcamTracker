@@ -13,6 +13,7 @@ Diese Firmware ersetzt die Dragino-Firmware vollständig: kein LoRaWAN, kein BLE
 | Sync-Word | 0x34 (öffentlich, wie LoRaWAN) | damit das SX1303-Gateway die Pakete empfängt |
 | Paket | 19 Bytes, Sendezeit 25,7 ms | 16–19 Bytes brauchen gleich viele Symbole |
 | Sendeabstand | ≥ 258 ms (10 % Duty Cycle), Standard 300 ms | **≈ 3,3 Positionen/s** |
+| GNSS | 10 Hz, GPS + BeiDou + GLONASS (`$PCAS04,7`) | bei 10 Hz liegt zu jedem Sendezeitpunkt eine höchstens 100 ms alte Position vor, die Pakete gehen gleichmässig alle 300 ms raus |
 | Sendeleistung | 17 dBm (einstellbar 2–20) | genug Reserve für 500 m über Wasser |
 
 Die Firmware erzwingt den Duty Cycle selbst: Nach jeder Sendung wartet sie mindestens das Neunfache der Sendezeit. Liegt die eingestellte Frequenz ausserhalb des 10-%-Bands, gilt automatisch 1 %.
@@ -65,7 +66,7 @@ Unter 3,3 V Akkuspannung (10 s lang) schaltet sich der Rover selbst ab.
 | `AT` | Verbindungstest | |
 | `ATI` / `AT+INFO` | Status: GNSS-Rate (Soll/gemessen), Fix, Funk, Duty Cycle, Akku, Log | |
 | `AT+ID=<0..31>` | Geräte-ID im Paket | 1 |
-| `AT+RATE=<1\|2\|4\|5\|10>` | GNSS-Rate in Hz (wirkt sofort) | 5 |
+| `AT+RATE=<1\|2\|4\|5\|10>` | GNSS-Rate in Hz (wirkt sofort) | 10 |
 | `AT+TXINT=<ms>` | Ziel-Sendeabstand bei Fix | 300 |
 | `AT+TXP=<2..20>` | Sendeleistung in dBm | 17 |
 | `AT+FREQ=<Hz>` | Frequenz (863–870 MHz) | 869525000 |
@@ -137,7 +138,7 @@ pio test -e native        # 27 Unit-Tests, ohne Hardware
 ## Ablauf
 
 ```
-Start ─► GNSS an, Baudrate erkennen (115200/9600), auf 115200 Baud, RMC+GGA, AT+RATE Hz
+Start ─► GNSS an, Baudrate erkennen (115200/9600), auf 115200 Baud, GPS+BDS+GLONASS, RMC+GGA, AT+RATE Hz
       ─► LoRa initialisieren, LittleFS mounten
 Loop ─► NMEA lesen ─► Epoche (RMC+GGA mit gleicher Zeit)
                     ├─► gültig? ─► ins Log

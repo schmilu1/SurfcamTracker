@@ -53,6 +53,10 @@ bool Gnss::begin(uint8_t rateHz) {
     Serial.println("[gnss] keine NMEA-Daten empfangen");
   }
 
+  // GPS + BeiDou + GLONASS (1 = GPS, 2 = BDS, 4 = GLONASS): mehr Satelliten, bessere HDOP
+  sendCommand("PCAS04,7");
+  delay(50);
+
   // Nur RMC und GGA ausgeben (GGA,GLL,GSA,GSV,RMC,VTG,ZDA,ANT,DHV,LPS,..,..,UTC,GST,..,..,..,TIM)
   sendCommand("PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0,,,,0");
 

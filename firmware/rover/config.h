@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define ROVER_FW_VERSION "0.1.2"
+#define ROVER_FW_VERSION "0.2.0"
 
 namespace pins {
 constexpr int GPS_RX = 9;      // ESP RX  <- L76K TXD
@@ -33,7 +33,7 @@ constexpr int BUZZER = 4;
 
 namespace defaults {
 constexpr uint8_t DEVICE_ID = 1;
-constexpr uint8_t GNSS_HZ = 5;             // 1, 2, 4, 5 oder 10
+constexpr uint8_t GNSS_HZ = 10;            // 1, 2, 4, 5 oder 10 (10 Hz: frische Position zu jedem Sendezeitpunkt)
 constexpr uint16_t TX_INTERVAL_MS = 300;   // Ziel-Sendeabstand bei Fix
 constexpr int8_t TX_POWER_DBM = 17;        // 2..20 dBm (PA_BOOST)
 constexpr uint32_t FREQ_HZ = 869525000UL;  // Mitte des Bands 869.40-869.65 MHz (10 % Duty Cycle)
