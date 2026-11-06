@@ -1,0 +1,10 @@
+[Unit]
+Description=SurfCam Hotspot alle 30 s prüfen
+
+[Timer]
+OnBootSec=20
+OnUnitActiveSec=30
+AccuracySec=1
+
+[Install]
+WantedBy=timers.target

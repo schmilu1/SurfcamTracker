@@ -1,0 +1,8 @@
+[Unit]
+Description=SurfCam Hotspot neben dem WLAN-Client
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/surfcam-ap
