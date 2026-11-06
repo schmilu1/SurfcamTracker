@@ -158,7 +158,7 @@ Loop ─► NMEA lesen ─► Epoche (RMC+GGA mit gleicher Zeit)
 - Geschwindigkeit: 0,8–1,7 m/s beim Gehen werden mit passendem Kurs gemeldet. Langsames Wandern um etwa 0,25 m/s meldet das L76K als 0,00 (Static Hold), der Kurs bleibt dann stehen.
 - Mit nur 4 Satelliten entsteht eine Scheinbewegung von etwa 10 m bei gemeldetem HDOP 1,3, danach 14,1. Fixes mit wenigen Satelliten bzw. hohem HDOP muss der Empfänger verwerfen oder abwerten.
 
-**Taste (06.11.2026):** Mit Version 0.1.0 liess sich das Gerät per Taste weder aus- noch einschalten (`AT+SLEEP` funktionierte). Die Taste hängt bei diesem Gerät nicht an IO0. Nach der alten Dragino-Firmware nutzen neuere Geräte IO25 (active-high), was 0.1.0 als GNSS-Reset-Ausgang auf LOW gehalten hatte.
+**Taste (06.11.2026):** Mit Version 0.1.0 liess sich das Gerät per Taste weder aus- noch einschalten (`AT+SLEEP` funktionierte). Die Taste hängt bei diesem Gerät nicht an IO0. Nach der alten Dragino-Firmware nutzen neuere Geräte IO25 (active-high), was 0.1.0 als GNSS-Reset-Ausgang auf LOW gehalten hatte. Mit 0.1.1 bestätigt: `AT+BTN` zeigt die Taste an IO25 (IO0 bleibt HIGH), Aus- und Einschalten per Taste funktionieren.
 
 **Nicht verifiziert:**
 - Feldreihenfolge von `$PCAS03` (RMC+GGA). Ob nur noch RMC und GGA kommen, zeigt `AT+NMEA=1`.
