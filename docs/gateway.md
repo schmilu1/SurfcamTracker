@@ -26,11 +26,14 @@ Der Pi hat keinen GitHub-Zugang. Änderungen werden auf dem Mac committet und ge
 
 ## GPS des HAT (Kamerastandort)
 
-Das HAT hat ein eigenes GNSS-Modul (L76B). Es soll später den Kamerastandort liefern, gemittelt über viele Fixes. **Entscheidung (06.11.2026):** Der SurfCam-Dienst liest die Schnittstelle selbst, `lora_pkt_fwd` bekommt keinen `gps_tty_path`. Sonst würde der Forwarder die Schnittstelle exklusiv belegen.
+Das HAT hat ein eigenes GNSS-Modul. Es liefert den Kamerastandort und dient als Referenz für das Differenz-GPS im Positionsbereich (siehe [tools/dgps](../tools/dgps/README.md)). **Entscheidung (06.11.2026):** Der SurfCam-Dienst (vorerst das [Test-GUI](../pi/testgui/README.md)) liest die Schnittstelle selbst, `lora_pkt_fwd` bekommt keinen `gps_tty_path`. Sonst würde der Forwarder die Schnittstelle exklusiv belegen.
+
+**Modul (geprüft 06.11.2026):** Kein MediaTek-L76B, wie früher hier stand. Es antwortet nicht auf `PMTK`-Befehle, meldet `$GPTXT,01,01,01,ANTENNA OK` und versteht die CASIC-Befehle des L76K im Tracker (`PCAS04,7` schaltet BeiDou zu). Gleiche Chipfamilie wie im Tracker ist günstig für die Differenzkorrektur.
 
 | | |
 |---|---|
-| Schnittstelle | **`/dev/ttyAMA0`**, 9600 Baud, NMEA (`$GN…`, GPS + GLONASS). Nicht `/dev/serial0`, das zeigt auf dem Pi 5 auf die Debug-Schnittstelle `ttyAMA10` |
+| Schnittstelle | **`/dev/ttyAMA0`**, nach dem Einschalten 9600 Baud, NMEA (`$GN…`, GPS + GLONASS). Nicht `/dev/serial0`, das zeigt auf dem Pi 5 auf die Debug-Schnittstelle `ttyAMA10` |
+| Einstellung durch das Test-GUI | bei jedem Start wie der Tracker: GPS + BeiDou + GLONASS (`PCAS04,7`), nur RMC + GGA (`PCAS03`), 115200 Baud (`PCAS01,5`), 10 Hz (`PCAS02,100`). Nicht im Modul gespeichert, nach Stromausfall wieder 9600 Baud / 1 Hz, bis das GUI neu einstellt |
 | Rechte | Benutzer `Milder` ist in `dialout` |
 | Test 06.11.2026 | Daten kommen, `ANTENNA OK`, aber 0 Satelliten (Antenne im Haus) |
 

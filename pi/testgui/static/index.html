@@ -84,6 +84,7 @@ details.free { margin-top: 8px; font-size: 13px; color: var(--muted); }
 details.free summary { cursor: pointer; }
 @media (max-width: 640px) { .cmd { grid-template-columns: 1fr; } }
 nav { overflow-x: auto; }
+#pFiles a { color: var(--accent); }
 #helpNav button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .md { margin-top: 12px; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
 .md h1 { font-size: 22px; margin: 4px 0 10px; }
@@ -114,6 +115,7 @@ nav { overflow-x: auto; }
   </div>
   <nav>
     <button data-tab="live" class="active">Live</button>
+    <button data-tab="position">Position</button>
     <button data-tab="tracker">Tracker</button>
     <button data-tab="log">Log</button>
     <button data-tab="gateway">Gateway</button>
@@ -148,6 +150,42 @@ nav { overflow-x: auto; }
       <div class="chart"><div class="t"><span>RSSI dBm</span><span id="cRssiV"></span></div><canvas id="cRssi"></canvas></div>
     </div>
     <div class="btns"><a class="b" href="/api/packets.csv">Empfangene Pakete als CSV</a></div>
+  </div>
+</section>
+
+<section id="position">
+  <div class="card">
+    <h2>Tracker relativ zur Kamera</h2>
+    <div class="grid" id="pRel"></div>
+    <div class="hint" id="pRelHint"></div>
+    <div class="btns">
+      <button class="b primary" id="pCalib">Kamerastandort festlegen</button>
+      <select id="pCalibSec" style="width:auto"><option value="30">30 s</option><option value="60" selected>60 s</option><option value="120">2 min</option><option value="300">5 min</option></select>
+      <button class="b" id="pCalibCancel" hidden>Abbrechen</button>
+      <button class="b danger" id="pCamClear">Kamerastandort löschen</button>
+    </div>
+    <div class="hint">Tracker direkt neben den Pi bzw. die Kamera legen, dann festlegen. Der Tracker muss einen Fix haben und senden.</div>
+    <div class="msg" id="pMsg"></div>
+  </div>
+  <div class="card">
+    <h2>Vergleich roh / korrigiert</h2>
+    <div class="row" style="align-items:center"><span class="hint" style="margin:0">Zeitraum</span>
+      <select id="pWin" style="width:auto"><option value="60">1 min</option><option value="300" selected>5 min</option><option value="900">15 min</option><option value="1800">30 min</option><option value="3600">60 min</option><option value="7200">2 h</option></select></div>
+    <div class="tbl"><table id="pStats"></table></div>
+    <canvas id="pPlot" style="height:320px;margin-top:8px"></canvas>
+    <div class="hint"><span style="color:var(--muted)">●</span> roh (nur Tracker) &nbsp; <span style="color:var(--accent)">●</span> korrigiert (Tracker − Pi zur selben Zeit). Ringe in Metern, Norden oben. Liegt der Tracker neben der Kamera, ist jeder Abstand von der Mitte Fehler.</div>
+  </div>
+  <div class="card">
+    <h2>GPS des Pi (HAT)</h2>
+    <div class="grid" id="pPi"></div>
+    <div class="btns"><button class="b" id="pBaseReset">Mittelwert neu beginnen</button></div>
+    <div class="hint">Mittelwert über höchstens ≈ 1 h, danach gleitend. Wird der Pi mehr als 50 m versetzt, beginnt er automatisch neu (Kamerastandort wird dann gelöscht).</div>
+  </div>
+  <div class="card">
+    <h2>Aufzeichnungen</h2>
+    <div id="pFiles" class="hint">…</div>
+    <div class="btns"><button class="b" id="pFilesRefresh">Aktualisieren</button></div>
+    <div class="hint">Auswertung am Rechner: <code>tools/dgps/dgps_eval.py</code> (siehe Hilfe, DGPS-Test). Dateien werden nach 30 Tagen gelöscht.</div>
   </div>
 </section>
 
@@ -271,6 +309,7 @@ $$("nav button").forEach(b => b.onclick = () => {
   if (b.dataset.tab === "live" && map) setTimeout(() => map.invalidateSize(), 50);
   if (b.dataset.tab === "log") loadLogs();
   if (b.dataset.tab === "help") loadHelp();
+  if (b.dataset.tab === "position") { loadPosition(); loadFiles(); }
   try { localStorage.setItem("tab", b.dataset.tab); } catch (e) {}
 });
 
@@ -614,6 +653,106 @@ $("#logDelAll").onclick = async () => {
   msg($("#logMsg"), r.ok ? (r.lines || []).join(" ") : (r.error || "Fehler"), r.ok);
   loadLogs();
 };
+
+// ---------------------------------------------------------------- Position (Pi-GPS, Kamera, Differenz)
+const DIRS = ["N", "NO", "O", "SO", "S", "SW", "W", "NW"];
+const dirName = b => DIRS[Math.round(b / 45) % 8];
+let posData = null;
+async function loadPosition() {
+  const r = await api("/api/position?window=" + $("#pWin").value);
+  if (!r.rel) return;
+  posData = r;
+  renderPosition();
+}
+function renderPosition() {
+  const { pi, rel } = posData;
+  const kv = (k, v, sub = "") => `<div class="kv"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  const l = rel.last;
+  const one = (x, what) => x ? kv(what, `${x.d.toFixed(1)} m`, `Richtung ${Math.round(x.brg)}° (${dirName(x.brg)})`) : kv(what, "–", "");
+  const cam = rel.cam;
+  $("#pRel").innerHTML =
+    one(l && l.raw, cam ? "Entfernung roh" : "Entfernung roh (zum Pi-Mittel)") +
+    one(l && l.corr, cam ? "Entfernung korrigiert" : "Tracker − Pi (ohne Versatz)") +
+    kv("Kamerastandort", cam ? "festgelegt" : "nicht festgelegt",
+       cam ? `${cam.set_at.slice(0, 16).replace("T", " ")} UTC · ${cam.n} Pos. · Versatz ${Math.hypot(cam.bias_e, cam.bias_n).toFixed(2)} m` : "") +
+    kv("Letzte Tracker-Position", l ? `vor ${l.age.toFixed(0)} s` : "–", l ? (l.pi_match ? "Pi-Position zur selben Zeit vorhanden" : "keine Pi-Position zur selben Zeit") : "");
+  $("#pRelHint").textContent = cam ? "" : "Noch kein Kamerastandort: «roh» misst zum Mittelwert des Pi-GPS, «korrigiert» zeigt Tracker − Pi ohne Versatzabgleich.";
+  const c = rel.calib;
+  $("#pCalib").disabled = !!c; $("#pCalibCancel").hidden = !c;
+  if (c) msg($("#pMsg"), `Kamerastandort wird bestimmt: noch ${c.remaining} s · ${c.n} Tracker-Positionen (${c.n_pairs} mit Pi-GPS)`, true);
+  else if (rel.calib_msg) msg($("#pMsg"), rel.calib_msg, true);
+  // Statistik
+  const st = rel.stats, row = (k, f) => `<tr><td>${k}</td><td class="num">${st.raw ? f(st.raw) : "–"}</td><td class="num">${st.corr ? f(st.corr) : "–"}</td></tr>`;
+  $("#pStats").innerHTML = `<thead><tr><th></th><th>roh</th><th>korrigiert</th></tr></thead><tbody>` +
+    row("Positionen", x => x.n) +
+    row("Abstand von der Mitte, Mittel", x => x.mean_d.toFixed(2) + " m") +
+    row("Abstand von der Mitte, 95 %", x => x.p95_d.toFixed(2) + " m") +
+    row("Streuung um den eigenen Mittelpunkt", x => x.spread.toFixed(2) + " m") +
+    row("Mittelpunkt (Ost / Nord)", x => `${x.mean_e.toFixed(2)} / ${x.mean_n.toFixed(2)} m`) + `</tbody>`;
+  drawScatter(rel.points);
+  // Pi-GPS
+  if (!pi) { $("#pPi").innerHTML = kv("GPS des Pi", "aus", "Server mit --pi-gnss aus gestartet"); return; }
+  const f = pi.last, b = rel.base;
+  $("#pPi").innerHTML =
+    kv("Modul", pi.connected ? "verbunden" : "getrennt", `${pi.port}${pi.baud ? " · " + pi.baud + " Baud" : ""} · ${pi.msg}`) +
+    kv("Fix", f && f.q ? `Fix, ${f.sats} Sat.` : "kein Fix", f ? `${pi.hz.toFixed(1)} Hz (eingestellt ${pi.rate_set}) · HDOP ${f.hdop ?? "–"}` : "") +
+    kv("Mittelwert", b ? `${b.lat.toFixed(6)}, ${b.lon.toFixed(6)}` : "–", b ? `${b.n} Positionen` : "") +
+    kv("Streuung Pi (5 min)", b && b.spread != null ? b.spread.toFixed(2) + " m" : "–", "um den Mittelwert");
+}
+function drawScatter(pts) {
+  const c = $("#pPlot"), dpr = window.devicePixelRatio || 1;
+  const W = c.clientWidth, H = c.clientHeight;
+  if (!W) return;
+  if (c.width !== W * dpr) { c.width = W * dpr; c.height = H * dpr; }
+  const g = c.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const css = getComputedStyle(document.documentElement);
+  const col = n => css.getPropertyValue(n).trim();
+  let max = 1;
+  for (const p of pts) for (let i = 0; i < 4; i += 2) if (p[i] !== null) max = Math.max(max, Math.hypot(p[i], p[i + 1]));
+  max = Math.min(max * 1.1, 200);
+  const R = Math.min(W, H) / 2 - 14, cx = W / 2, cy = H / 2, k = R / max;
+  const step = [0.5, 1, 2, 5, 10, 20, 50, 100].find(s => max / s <= 5) || 100;
+  g.strokeStyle = col("--line"); g.fillStyle = col("--muted"); g.font = "11px sans-serif"; g.lineWidth = 1;
+  for (let r = step; r <= max; r += step) {
+    g.beginPath(); g.arc(cx, cy, r * k, 0, 2 * Math.PI); g.stroke();
+    g.fillText(r + " m", cx + r * k * 0.71 + 2, cy - r * k * 0.71 - 2);
+  }
+  g.beginPath(); g.moveTo(cx - R, cy); g.lineTo(cx + R, cy); g.moveTo(cx, cy - R); g.lineTo(cx, cy + R); g.stroke();
+  g.fillText("N", cx + 4, cy - R + 10); g.fillText("O", cx + R - 10, cy - 4);
+  const dot = (e, n, color) => { g.fillStyle = color; g.fillRect(cx + e * k - 1.5, cy - n * k - 1.5, 3, 3); };
+  g.globalAlpha = 0.5;
+  for (const p of pts) if (p[0] !== null) dot(p[0], p[1], col("--muted"));
+  g.globalAlpha = 0.8;
+  for (const p of pts) if (p[2] !== null) dot(p[2], p[3], col("--accent"));
+  g.globalAlpha = 1;
+}
+async function loadFiles() {
+  const r = await api("/api/data");
+  const list = (kind, title) => {
+    const fs = r[kind] || [];
+    return `<div style="margin-top:6px"><b>${title}</b> (${fs.length})</div>` + (fs.length ? fs.slice(0, 15).map(f =>
+      `<div><a href="/api/data/${kind}/${f.name}" download>${f.name}</a> · ${(f.bytes / 1024).toFixed(0)} kB</div>`).join("") : "<div>keine</div>");
+  };
+  $("#pFiles").innerHTML = list("pi_gnss", "GPS des Pi") + list("rx", "Empfangene Tracker-Pakete");
+}
+$("#pWin").onchange = loadPosition;
+$("#pFilesRefresh").onclick = loadFiles;
+$("#pCalib").onclick = async () => {
+  await api("/api/position/calibrate", { seconds: +$("#pCalibSec").value });
+  loadPosition();
+};
+$("#pCalibCancel").onclick = async () => { await api("/api/position/cancel", {}); msg($("#pMsg"), "abgebrochen", false); loadPosition(); };
+$("#pCamClear").onclick = async () => {
+  if (!confirm("Kamerastandort löschen?")) return;
+  await api("/api/position/clear_cam", {}); msg($("#pMsg"), "Kamerastandort gelöscht", true); loadPosition();
+};
+$("#pBaseReset").onclick = async () => {
+  if (!confirm("Mittelwert des Pi-GPS neu beginnen?")) return;
+  await api("/api/position/reset_base", {}); loadPosition();
+};
+setInterval(() => { if ($("#position").classList.contains("active") && !hash.has("nosse")) loadPosition(); }, 1000);
 
 // ---------------------------------------------------------------- Hilfe (README-Dateien aus dem Repo)
 const GITHUB = "https://github.com/schmilu1/SurfcamTracker/blob/main/";

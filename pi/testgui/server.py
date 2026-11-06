@@ -27,6 +27,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import serial
 
+import position
 import uplink
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -38,7 +39,16 @@ HELP_DOCS = [
     ("hotspot", "Hotspot", "pi/hotspot/README.md"),
     ("tracker", "Tracker-Firmware", "firmware/rover/README.md"),
     ("gateway", "Gateway", "docs/gateway.md"),
+    ("dgps", "DGPS-Test", "tools/dgps/README.md"),
 ]
+RX_FIELDS = ["band", "id", "seq", "lost", "rssi", "snr", "fix", "sats", "hdop", "lat", "lon", "speed", "course",
+             "utc_ms", "battery_mv", "motion_rms", "motion_peak", "tilt"]
+# in main() gesetzt
+rx_log = None      # Aufzeichnung aller empfangenen Pakete
+relative = None    # position.Relative
+pi_gnss = None     # position.PiGnss
+pi_log = None      # Aufzeichnung des Pi-GNSS
+DATA_KINDS = ("rx", "pi_gnss")
 DEFAULT_BAND_SH = os.path.expanduser("~/sx1302_hal_rpi5-master/surfcam/band.sh")
 SESSION_RE = re.compile(r"^(\d{6}_\d{6})\s+(\d+) Segmente\s+(\d+) Bytes\s+(\d+) Positionen(\s+\(aktiv\))?")
 
@@ -109,6 +119,11 @@ class PacketStore:
                       "rssi": rssi, "snr": snr, "gateway": gw})
             self.packets.append(p)
         events.send("packet", p)
+        if rx_log:
+            rx_log.write([datetime.fromtimestamp(now, timezone.utc).isoformat(timespec="milliseconds")] +
+                         [p.get(f) if p.get(f) is not None else "" for f in RX_FIELDS])
+        if relative:
+            relative.on_packet(p)
 
     def recent(self, seconds=600, limit=3000):
         cutoff = time.time() - seconds
@@ -383,6 +398,37 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 return self.wfile.write(body)
+            if path == "/api/position":
+                win = int(parse_qs(url.query).get("window", ["300"])[0])
+                return self._json({"pi": pi_gnss.info() if pi_gnss else None,
+                                   "rel": relative.info(max(10, min(win, 7200)))})
+            if path == "/api/data":
+                files = {}
+                for kind in DATA_KINDS:
+                    folder = os.path.join(self.data_dir, kind)
+                    files[kind] = [{"name": os.path.basename(f), "bytes": os.path.getsize(f),
+                                    "mtime": os.path.getmtime(f)}
+                                   for f in sorted(glob.glob(os.path.join(folder, "*.csv")), reverse=True)]
+                return self._json(files)
+            m = re.match(r"^/api/data/(rx|pi_gnss)/(\d{8}_\d{6}\.csv)$", path)
+            if m:
+                if rx_log:
+                    rx_log.flush()
+                if pi_log:
+                    pi_log.flush()
+                fp = os.path.join(self.data_dir, m.group(1), m.group(2))
+                try:
+                    with open(fp, "rb") as f:
+                        body = f.read()
+                except OSError:
+                    return self._error("nicht gefunden", 404)
+                self.send_response(200)
+                self.send_header("Content-Type", "text/csv; charset=utf-8")
+                self.send_header("Content-Disposition", 'attachment; filename="%s_%s"' % (m.group(1), m.group(2)))
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             if path == "/api/help":
                 docs = []
                 for doc_id, title, rel in HELP_DOCS:
@@ -419,6 +465,18 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         try:
             body = self._body()
+            if path == "/api/position/calibrate":
+                relative.start_calib(max(10, min(int(body.get("seconds", 60)), 600)))
+                return self._json({"ok": True})
+            if path == "/api/position/cancel":
+                relative.cancel_calib()
+                return self._json({"ok": True})
+            if path == "/api/position/clear_cam":
+                relative.clear_cam()
+                return self._json({"ok": True})
+            if path == "/api/position/reset_base":
+                relative.reset_base()
+                return self._json({"ok": True})
             if path == "/api/tracker/status":
                 return self._json({"ok": True, "status": tracker.refresh_status()})
             if path == "/api/tracker/cmd":
@@ -516,9 +574,22 @@ def main():
     ap.add_argument("--mqtt-port", type=int, default=1883)
     ap.add_argument("--tracker", help="serielle Schnittstelle (Standard: automatisch)")
     ap.add_argument("--band-sh", default=DEFAULT_BAND_SH, help="Pfad zu surfcam/band.sh")
+    ap.add_argument("--data", default=os.path.expanduser("~/surfcam-data"),
+                    help="Ordner für Aufzeichnungen (Standard ~/surfcam-data)")
+    ap.add_argument("--pi-gnss", default="/dev/ttyAMA0", help="GNSS des HAT (Standard /dev/ttyAMA0), 'aus' = nicht lesen")
+    ap.add_argument("--pi-gnss-rate", type=int, default=10, choices=(1, 2, 5, 10), help="Rate in Hz (Standard 10)")
     args = ap.parse_args()
 
+    global rx_log, relative, pi_gnss, pi_log
     Handler.band_sh = args.band_sh
+    Handler.data_dir = args.data
+    rx_log = position.DailyCsv(os.path.join(args.data, "rx"), ["rx_utc"] + RX_FIELDS)
+    relative = position.Relative(os.path.join(args.data, "position.json"))
+    if args.pi_gnss != "aus":
+        pi_log = position.DailyCsv(os.path.join(args.data, "pi_gnss"),
+                                   ["date", "utc", "time_ms", "lat", "lon", "alt", "fix", "sats", "hdop"])
+        pi_gnss = position.PiGnss(args.pi_gnss, args.pi_gnss_rate, relative.on_pi_fix, pi_log)
+        pi_gnss.start()
     uplink.MqttSubscriber(args.mqtt, args.mqtt_port, uplink.TOPIC, packets.on_message, packets.on_status).start()
     tracker = Tracker(args.tracker)
     tracker.start()

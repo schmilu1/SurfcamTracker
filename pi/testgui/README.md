@@ -6,6 +6,7 @@ Webserver auf dem Pi zum Testen: zeigt die Funkpakete des Rovers live an und ste
 
 | Tab | Inhalt |
 |---|---|
+| Position | Tracker relativ zur Kamera (Entfernung, Richtung) roh und mit dem Pi-GPS korrigiert, Kamerastandort festlegen (Tracker neben den Pi legen), Vergleich roh/korrigiert mit Streudiagramm, Status und Mittelwert des Pi-GPS, Aufzeichnungen herunterladen. Siehe [DGPS-Test](../../tools/dgps/README.md) |
 | Live | letztes Paket (Geschwindigkeit, Fix, Bewegung, RSSI/SNR, Pakete/s, Verlust, Akku), Karte mit Spur der letzten 5 min, Verläufe der letzten 2 min, empfangene Pakete als CSV |
 | Tracker | nur mit USB: Status; Einstellungen als Formular (mehrere Werte auf einmal, Funkband inkl. Gateway); **Befehle**: jeder AT-Befehl als Button, mit Eingabefeld und Hinweis wo ein Wert nötig ist, „Abfragen“ zeigt den aktuellen Wert, Felder sind mit den aktuellen Werten vorbelegt, Sessions zum Herunterladen/Löschen als Auswahl; Konsole mit der vollständigen Ausgabe (eigener Befehl nur noch aufklappbar) |
 | Log | nur mit USB: Sessions im Flash des Trackers, CSV herunterladen, löschen |
@@ -32,12 +33,15 @@ Gateway Bridge ─MQTT─► server.py ◄─USB (AT-Befehle, AT+JSON)─ Tracke
 | Datei | Inhalt |
 |---|---|
 | [server.py](server.py) | HTTP-Server, Tracker-Verbindung (pyserial), Status alle 2 s per `AT+JSON` |
+| [position.py](position.py) | GPS des Pi (HAT, `/dev/ttyAMA0`) lesen und wie den Tracker einstellen, Aufzeichnung, Kamerastandort, Differenzkorrektur |
 | [uplink.py](uplink.py) | MQTT-Client (nur Abonnieren), Protobuf-Leser, Decoder für Rover-Pakete Version 1 und 2 |
 | [static/index.html](static/index.html) | Weboberfläche (ohne Build, Leaflet für die Karte) |
 | [surfcam-testgui.service](surfcam-testgui.service) | systemd-Dienst |
 | [sudoers-surfcam-testgui](sudoers-surfcam-testgui) | erlaubt `systemctl restart lora-pkt-fwd` ohne Passwort (für die Band-Umschaltung) |
 
 Nur Python 3 und pyserial (auf dem Pi vorinstalliert).
+
+Aufzeichnungen (Pi-GPS, empfangene Pakete) und der Kamerastandort liegen in `~/surfcam-data/` (Option `--data`). Das GPS des Pi liest der Server von `/dev/ttyAMA0` (`--pi-gnss`, `aus` zum Abschalten) mit 10 Hz (`--pi-gnss-rate`).
 
 ## Installation auf dem Pi
 
@@ -76,5 +80,10 @@ python3 server.py --port 8090 --mqtt mildersurf.local --tracker /dev/cu.usbseria
 | GET | `/api/tracker/logs` | Sessions (`AT+LOG`) |
 | GET | `/api/tracker/logs/<session>.csv` | Session herunterladen (`AT+LOGDUMP`, gestreamt) |
 | GET | `/api/gateway` | Funkband und Zustand des Forwarders |
+| GET | `/api/position?window=300` | Pi-GPS, Kamerastandort, letzte Relativposition, Statistik und Punkte der letzten n s |
+| POST | `/api/position/calibrate` `{"seconds": 60}` | Kamerastandort festlegen (Tracker neben dem Pi) |
+| POST | `/api/position/cancel`, `/clear_cam`, `/reset_base` | Kalibrierung abbrechen, Kamerastandort löschen, Pi-Mittelwert neu beginnen |
+| GET | `/api/data` | Aufzeichnungen (`rx`, `pi_gnss`) |
+| GET | `/api/data/<rx\|pi_gnss>/<datei>.csv` | Aufzeichnung herunterladen |
 | GET | `/api/help` | README-Dateien für den Tab Hilfe (Markdown) |
 | POST | `/api/gateway/band` `{"band": "A", "tracker": true, "gateway": true}` | Band umschalten (Tracker und/oder Gateway) |

@@ -21,6 +21,7 @@ L76K GNSS, 5 Hz                  SX1302-HAT ─► lora_pkt_fwd ─► ChirpStac
 | [docs/hardware](docs/hardware) | Schaltplan, Layout und Bestückungsplan TrackerD v1.2 (Dragino) |
 | [pi/testgui](pi/testgui) | **Test-GUI auf dem Pi** (Port 8080): Live-Daten, Tracker per USB einstellen, Log herunterladen, Funkband umschalten |
 | [pi/hotspot](pi/hotspot) | **Hotspot auf dem Pi** neben dem eigenen WLAN: GUI auch ohne Heimnetz unter `http://192.168.4.1:8080` |
+| [tools/dgps](tools/dgps) | **DGPS-Test:** Tracker mit dem Pi-GPS korrigieren, Auswertung roh gegen korrigiert |
 | [tools/rangetest](tools/rangetest) | Reichweitentest auf dem Pi: Paketverlust, RSSI, SNR, Entfernung, CSV |
 | [tools/openocd](tools/openocd) | OpenOCD-Konfiguration für JTAG-Debugging über einen FTDI-Adapter |
 
