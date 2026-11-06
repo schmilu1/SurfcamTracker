@@ -2,7 +2,7 @@
 
 Webserver auf dem Pi zum Testen: zeigt die Funkpakete des Rovers live an und stellt den Tracker ein, wenn er per USB am Pi steckt.
 
-**Aufruf:** `http://mildersurf.local:8080` oder `http://<IP des Pi>:8080`, im Browser auf dem Pi oder auf dem Handy im selben WLAN. Auf dem Pi selbst geht auch `http://localhost:8080`.
+**Aufruf:** `http://mildersurf.local:8080` oder `http://<IP des Pi>:8080`, im Browser auf dem Pi oder auf dem Handy im selben WLAN. Auf dem Pi selbst geht auch `http://localhost:8080`. Im [Hotspot des Pi](../hotspot/) (ohne Heimnetz): `http://192.168.4.1:8080`.
 
 | Tab | Inhalt |
 |---|---|
@@ -17,7 +17,7 @@ Die Karte braucht Internet (OpenStreetMap). Ohne Internet funktioniert alles and
 
 - Beim Einstecken in den Pi startet der Tracker neu (Auto-Reset-Schaltung des USB-Wandlers). Das Log im Flash bleibt erhalten.
 - Der Log-Download läuft über USB mit ≈ 100 Positionen/s: eine Stunde bei 5 Hz dauert ≈ 3 min. Währenddessen sind keine anderen Befehle möglich.
-- Ohne Anmeldung: Wer im WLAN ist, kann den Tracker einstellen. Für ein offenes WLAN nicht geeignet.
+- Ohne Anmeldung: Wer im WLAN oder im Hotspot ist, kann den Tracker einstellen. Den Hotspot deshalb nur mit Passwort betreiben.
 
 ## Aufbau
 
