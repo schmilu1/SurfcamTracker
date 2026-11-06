@@ -65,6 +65,7 @@ bool numericSetting(const char* name, const char* val, bool query, uint32_t curr
                     uint32_t hi, uint32_t& out) {
   if (query || !val) {
     Serial.printf("AT+%s=%lu\r\n", name, (unsigned long)current);
+    ok();
     return false;
   }
   uint32_t v;
@@ -108,6 +109,7 @@ void handle(char* cmd) {
     ok();
   } else if (strcmp(cmd, "AT+HELP") == 0) {
     printHelp();
+    ok();
   } else if (strcmp(cmd, "AT+ID") == 0) {
     if (numericSetting("ID", val, query, settings.deviceId, 0, 31, v)) {
       settings.deviceId = (uint8_t)v;
@@ -129,6 +131,7 @@ void handle(char* cmd) {
     if (query || !val || !*val) {
       const BandProfile* cur = currentBand();
       Serial.printf("AT+BAND=%c%s\r\n", cur ? cur->name : '-', cur ? "" : "  (eigene Einstellungen)");
+      ok();
       return;
     }
     const char c = (char)toupper((unsigned char)val[0]);
@@ -151,6 +154,7 @@ void handle(char* cmd) {
     if (query || !val) {
       Serial.printf("AT+TXINT=%u  (wirksam %lu ms, %s)\r\n", settings.txIntervalMs,
                     (unsigned long)txIntervalMs(), settings.txIntervalMs ? "fest" : "automatisch");
+      ok();
     } else if (numericSetting("TXINT", val, query, settings.txIntervalMs, 0, 60000, v)) {
       if (v != 0 && v < 50) {
         err("0 (automatisch) oder 50..60000 ms");

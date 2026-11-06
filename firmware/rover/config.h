@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define ROVER_FW_VERSION "0.4.1"
+#define ROVER_FW_VERSION "0.4.2"
 
 namespace pins {
 constexpr int GPS_RX = 9;      // ESP RX  <- L76K TXD
