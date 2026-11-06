@@ -1,6 +1,6 @@
 # Gateway: Waveshare SX1302 HAT am Raspberry Pi 5
 
-Empfang der Rover-Pakete (LoRa Punkt-zu-Punkt, 869,525 MHz, SF7, 250 kHz) über das LoRaWAN-Gateway-HAT. Die Konfiguration ist versioniert im Repo [schmilu1/sx1302_hal_rpi5-master](https://github.com/schmilu1/sx1302_hal_rpi5-master) (privat), Ordner `surfcam/`.
+Empfang der Rover-Pakete (LoRa Punkt-zu-Punkt, Band A 869,525 MHz oder Band B 869,85 MHz, SF7, 250 kHz) über das LoRaWAN-Gateway-HAT. Die Konfiguration ist versioniert im Repo [schmilu1/sx1302_hal_rpi5-master](https://github.com/schmilu1/sx1302_hal_rpi5-master) (privat), Ordner `surfcam/`.
 
 ## Aufbau auf dem Pi (`MilderSurf`, Debian 12, aarch64)
 
@@ -13,7 +13,9 @@ SX1302 HAT ─SPI─► lora_pkt_fwd ─UDP 1700─► ChirpStack Gateway Bridge
 |---|---|
 | Repo (HAL + Konfiguration) | `~/sx1302_hal_rpi5-master`, Remote `LoRa` |
 | Paket-Forwarder | `~/sx1302_hal_rpi5-master/packet_forwarder/lora_pkt_fwd`, systemd-Dienst `lora-pkt-fwd` |
-| Forwarder-Konfiguration | `~/sx1302_hal_rpi5-master/surfcam/global_conf.json` |
+| Forwarder-Konfiguration | `~/sx1302_hal_rpi5-master/surfcam/global_conf_A.json` / `_B.json`, aktiv über den Symlink `global_conf_active.json` |
+| Band umschalten | `~/sx1302_hal_rpi5-master/surfcam/band.sh A\|B` (Rover: `AT+BAND=A\|B`) |
+| Reichweitentest | `~/SurfcamTracker/tools/rangetest/rangetest.py` ([README](../tools/rangetest/README.md)) |
 | Docker | Compose-Projekt `surfcam` (`surfcam/docker-compose.yml`): Gateway Bridge, Mosquitto |
 | MQTT | Mosquitto, Port 1883, anonym |
 | Gateway-ID | `0016c001f160f1e3` |
@@ -32,7 +34,9 @@ Das HAT hat ein eigenes GNSS-Modul (L76B). Es soll später den Kamerastandort li
 | Rechte | Benutzer `Milder` ist in `dialout` |
 | Test 06.11.2026 | Daten kommen, `ANTENNA OK`, aber 0 Satelliten (Antenne im Haus) |
 
-## Kanalplan (geändert am 05.11.2026)
+## Kanalplan Band A (geändert am 05.11.2026)
+
+Band B (seit 06.11.2026): Funkteil 1 auf 869,2 MHz, LoRa-Einzelkanal 869,85 MHz (IF +650 kHz), 868,3 MHz auf Funkteil 0. Details im Gateway-Repo, `surfcam/README.md`.
 
 Ein Funkteil des SX1302 empfängt Kanäle bis `|IF| + Bandbreite/2 ≤ 800 kHz` um seine Mittenfrequenz (`LGW_RF_RX_BANDWIDTH_* = 1600000` in `loragw_hal.c`). Damit der 250-kHz-Einzelkanal auf 869,525 MHz Platz hat, wurden die Mittenfrequenzen verschoben. Alle 8 LoRaWAN-Kanäle sind weiterhin konfiguriert.
 
@@ -46,7 +50,7 @@ Ein Funkteil des SX1302 empfängt Kanäle bis `|IF| + Bandbreite/2 ≤ 800 kHz` 
 | LoRa-Einzelkanal 250 kHz, SF7 | 868,3 MHz | **869,525 MHz** (IF +625 kHz) |
 | FSK 50 kbit/s | 868,8 MHz | 868,8 MHz |
 
-Nach Änderungen an `global_conf.json`: `sudo systemctl restart lora-pkt-fwd`.
+Nach Änderungen an `global_conf_*.json`: `sudo systemctl restart lora-pkt-fwd`.
 
 ## Empfang prüfen
 
