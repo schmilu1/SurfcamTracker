@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define ROVER_FW_VERSION "0.1.1"
+#define ROVER_FW_VERSION "0.1.2"
 
 namespace pins {
 constexpr int GPS_RX = 9;      // ESP RX  <- L76K TXD
@@ -48,6 +48,9 @@ constexpr uint32_t FIX_TIMEOUT_MS = 2000;         // Fix gilt als veraltet
 constexpr uint32_t LOG_FLUSH_MS = 5000;
 constexpr uint32_t LONG_PRESS_MS = 3000;          // Ausschalten
 constexpr uint32_t WAKE_HOLD_MS = 1000;           // Einschalten aus dem Sleep
+constexpr uint32_t LED_BEAT_MS = 2000;            // Status-Blitz alle 2 s
+constexpr uint32_t LED_FLASH_MS = 15;             // kurzer Blitz (Fix / kein Fix / gesendet)
+constexpr uint32_t LED_LONG_MS = 100;             // keine Daten vom GNSS-Modul
 constexpr uint16_t BATTERY_EMPTY_MV = 3300;
 constexpr uint32_t BATTERY_EMPTY_HOLD_MS = 10000;
 }  // namespace timing

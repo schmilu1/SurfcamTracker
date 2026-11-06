@@ -49,12 +49,12 @@ Referenz-Implementierung: [packet.h](packet.h) / [packet.cpp](packet.cpp) (`enco
 
 Die Taste hängt je nach Board-Revision an **IO0** (ältere Geräte, gedrückt = LOW) oder an **IO25** (neuere Geräte, gedrückt = HIGH). Die Firmware liest beide und wacht über beide auf (ext0 bzw. ext1). Auf Board v1.2 ist IO25 der GNSS-Reset; er wird als Eingang mit Pulldown betrieben und bleibt so inaktiv. `AT+BTN` zeigt 10 s lang die Pegel beider Pins.
 
-| LED (1× pro Sekunde) | Bedeutung |
+| LED (Blitz alle 2 s, 15 ms) | Bedeutung |
 |---|---|
 | grün kurz | GNSS-Fix |
 | rot kurz | kein Fix |
-| rot lang | keine Daten vom GNSS-Modul |
-| blau kurz | Funkpaket gesendet (höchstens 1× pro Sekunde angezeigt) |
+| rot länger (100 ms) | keine Daten vom GNSS-Modul |
+| blau kurz | Funkpaket gesendet (höchstens alle 2 s angezeigt) |
 
 Unter 3,3 V Akkuspannung (10 s lang) schaltet sich der Rover selbst ab.
 

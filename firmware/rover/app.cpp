@@ -73,14 +73,14 @@ static void ledsUpdate() {
     }
   }
   static uint32_t lastBeat = 0;
-  if (now - lastBeat >= 1000) {
+  if (now - lastBeat >= timing::LED_BEAT_MS) {
     lastBeat = now;
     if (!gnssAlive()) {
-      ledFlash(g_red, 300);
+      ledFlash(g_red, timing::LED_LONG_MS);
     } else if (fixValid()) {
-      ledFlash(g_green, 60);
+      ledFlash(g_green, timing::LED_FLASH_MS);
     } else {
-      ledFlash(g_red, 60);
+      ledFlash(g_red, timing::LED_FLASH_MS);
     }
   }
 }
@@ -226,9 +226,9 @@ static void maybeSend() {
   if (radio.send(buf, n)) {
     g_seq++;
     g_newFix = false;
-    if (now - g_lastBlueMs >= 1000) {
+    if (now - g_lastBlueMs >= timing::LED_BEAT_MS) {
       g_lastBlueMs = now;
-      ledFlash(g_blue, 30);
+      ledFlash(g_blue, timing::LED_FLASH_MS);
     }
   }
 }
