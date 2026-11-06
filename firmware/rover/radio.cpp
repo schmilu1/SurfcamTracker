@@ -29,7 +29,7 @@ bool Radio::begin(uint32_t freqHz, uint8_t sf, uint32_t bwHz, int8_t txPowerDbm)
   freqHz_ = freqHz;
   sf_ = sf;
   bwHz_ = bwHz;
-  dutyPermille_ = surfcam::dutyCyclePermille(freqHz, bwHz);
+  dutyPermille_ = surfcam::dutyCyclePermille(freqHz, bwHz, txPowerDbm);
   startMs_ = millis();
   ok_ = false;
 
@@ -48,8 +48,9 @@ bool Radio::begin(uint32_t freqHz, uint8_t sf, uint32_t bwHz, int8_t txPowerDbm)
 
   const uint32_t ownUs = airtimeUs(surfcam::kPacketSize);
   const uint32_t libUs = (uint32_t)lora.getTimeOnAir(surfcam::kPacketSize);
-  Serial.printf("[radio] OK, %.3f MHz, SF%u, %lu kHz, %d dBm, Duty Cycle %u %%, Paket %lu us, min. Abstand %lu ms\r\n",
-                freqHz / 1e6, sf, (unsigned long)(bwHz / 1000), txPowerDbm, dutyPermille_ / 10,
+  Serial.printf("[radio] OK, %.3f MHz, SF%u, %lu kHz, %d dBm, Duty Cycle %s, Paket %lu us, min. Abstand %lu ms\r\n",
+                freqHz / 1e6, sf, (unsigned long)(bwHz / 1000), txPowerDbm,
+                dutyPermille_ >= 1000 ? "ohne Grenze" : dutyPermille_ == 100 ? "10 %" : "1 %",
                 (unsigned long)ownUs, (unsigned long)minSpacingMs(surfcam::kPacketSize));
   // Plausibilitätsprüfung der eigenen Sendezeit-Berechnung gegen RadioLib
   const uint32_t diff = ownUs > libUs ? ownUs - libUs : libUs - ownUs;

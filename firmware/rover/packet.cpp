@@ -95,10 +95,11 @@ uint32_t loraAirtimeUs(size_t payloadLen, uint8_t sf, uint32_t bwHz, uint8_t crD
   return (uint32_t)lround((tPreamble + nPayload * tSym) * 1e6);
 }
 
-uint16_t dutyCyclePermille(uint32_t freqHz, uint32_t bwHz) {
+uint16_t dutyCyclePermille(uint32_t freqHz, uint32_t bwHz, int8_t txPowerDbm) {
   const uint32_t lo = freqHz - bwHz / 2;
   const uint32_t hi = freqHz + bwHz / 2;
   if (lo >= 869400000UL && hi <= 869650000UL) return 100;
+  if (lo >= 869700000UL && hi <= 870000000UL && txPowerDbm <= kMaxDbmNoDutyBand) return 1000;
   return 10;
 }
 

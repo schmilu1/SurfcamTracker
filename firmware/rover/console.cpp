@@ -30,7 +30,8 @@ void printHelp() {
       "ATI / AT+INFO    Status\r\n"
       "AT+ID=<0..31>    Geräte-ID im Funkpaket\r\n"
       "AT+RATE=<Hz>     GNSS-Rate: 1, 2, 4, 5, 10\r\n"
-      "AT+TXINT=<ms>    Ziel-Sendeabstand bei Fix (Duty Cycle begrenzt zusätzlich)\r\n"
+      "AT+BAND=<A|B>    Funkprofil: A 869.525 MHz/17 dBm (10 %), B 869.85 MHz/7 dBm (ohne Grenze)\r\n"
+      "AT+TXINT=<ms>    Sendeabstand bei Fix, 0 = automatisch (so schnell wie erlaubt)\r\n"
       "AT+TXP=<dBm>     Sendeleistung 2..20\r\n"
       "AT+FREQ=<Hz>     Frequenz 863000000..870000000\r\n"
       "AT+SF=<7..12>    Spreading Factor\r\n"
@@ -51,8 +52,9 @@ void printHelp() {
 
 void printSpacingHint() {
   const uint32_t minMs = radio.minSpacingMs(surfcam::kPacketSize);
-  Serial.printf("Duty Cycle %u %% -> min. Sendeabstand %lu ms (max. %.1f Pakete/s)\r\n",
-                radio.dutyPermille() / 10, (unsigned long)minMs, minMs ? 1000.0f / minMs : 0.0f);
+  Serial.printf("Duty Cycle %s -> min. Sendeabstand %lu ms (max. %.1f Pakete/s), wirksam %lu ms\r\n",
+                radio.dutyPermille() >= 1000 ? "ohne Grenze" : radio.dutyPermille() == 100 ? "10 %" : "1 %", (unsigned long)minMs, minMs ? 1000.0f / minMs : 0.0f,
+                (unsigned long)txIntervalMs());
 }
 
 // Einstellungen mit Ganzzahlwert: Abfrage, Bereichsprüfung, Setzen
@@ -117,18 +119,53 @@ void handle(char* cmd) {
       Serial.printf("GNSS-Rate %u Hz (gemessene Rate nach ca. 5 s mit ATI prüfen)\r\n", settings.gnssHz);
       ok();
     }
+  } else if (strcmp(cmd, "AT+BAND") == 0) {
+    if (query || !val || !*val) {
+      const BandProfile* cur = currentBand();
+      Serial.printf("AT+BAND=%c%s\r\n", cur ? cur->name : '-', cur ? "" : "  (eigene Einstellungen)");
+      return;
+    }
+    const char c = (char)toupper((unsigned char)val[0]);
+    const BandProfile* b = c == 'A' ? &BAND_A : c == 'B' ? &BAND_B : nullptr;
+    if (!b || val[1] != '\0') {
+      err("A oder B");
+      return;
+    }
+    settings.freqHz = b->freqHz;
+    settings.txPowerDbm = b->txPowerDbm;
+    settings.save();
+    if (applyRadioSettings()) {
+      Serial.printf("Band %c: %s\r\n", b->name, b->text);
+      printSpacingHint();
+      ok();
+    } else {
+      err("Funk-Initialisierung fehlgeschlagen");
+    }
   } else if (strcmp(cmd, "AT+TXINT") == 0) {
-    if (numericSetting("TXINT", val, query, settings.txIntervalMs, 50, 60000, v)) {
+    if (query || !val) {
+      Serial.printf("AT+TXINT=%u  (wirksam %lu ms, %s)\r\n", settings.txIntervalMs,
+                    (unsigned long)txIntervalMs(), settings.txIntervalMs ? "fest" : "automatisch");
+    } else if (numericSetting("TXINT", val, query, settings.txIntervalMs, 0, 60000, v)) {
+      if (v != 0 && v < 50) {
+        err("0 (automatisch) oder 50..60000 ms");
+        return;
+      }
       settings.txIntervalMs = (uint16_t)v;
       settings.save();
-      if (v < radio.minSpacingMs(surfcam::kPacketSize)) printSpacingHint();
+      if (v != 0 && v < radio.minSpacingMs(surfcam::kPacketSize)) printSpacingHint();
+      Serial.printf("Sendeabstand %lu ms\r\n", (unsigned long)txIntervalMs());
       ok();
     }
   } else if (strcmp(cmd, "AT+TXP") == 0) {
     if (numericSetting("TXP", val, query, (uint32_t)settings.txPowerDbm, 2, 20, v)) {
       settings.txPowerDbm = (int8_t)v;
       settings.save();
-      applyRadioSettings() ? ok() : err("Funk-Initialisierung fehlgeschlagen");
+      if (applyRadioSettings()) {
+        printSpacingHint();  // im Band 869.7-870 MHz hängt der Duty Cycle von der Leistung ab
+        ok();
+      } else {
+        err("Funk-Initialisierung fehlgeschlagen");
+      }
     }
   } else if (strcmp(cmd, "AT+FREQ") == 0) {
     if (numericSetting("FREQ", val, query, settings.freqHz, 863000000UL, 870000000UL, v)) {

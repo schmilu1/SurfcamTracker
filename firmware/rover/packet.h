@@ -58,9 +58,14 @@ FixType fixTypeFromGga(uint8_t ggaQuality, bool rmcValid);
 uint32_t loraAirtimeUs(size_t payloadLen, uint8_t sf, uint32_t bwHz, uint8_t crDenom = 5,
                        uint16_t preambleLen = 8, bool crc = true, bool explicitHeader = true);
 
-// Erlaubter Duty Cycle in Promille für eine Mittenfrequenz und Bandbreite (EU 863-870 MHz):
-// 100 (10 %) im Band 869.40-869.65 MHz, sonst 10 (1 %).
-uint16_t dutyCyclePermille(uint32_t freqHz, uint32_t bwHz);
+// Erlaubter Duty Cycle in Promille (EU 863-870 MHz, ERC/REC 70-03):
+//   869.40-869.65 MHz: 100 (10 %)
+//   869.70-870.00 MHz: 1000 (keine Grenze) bei höchstens 7 dBm Sendeleistung (5 mW ERP), sonst 10 (1 %)
+//   sonst: 10 (1 %)
+uint16_t dutyCyclePermille(uint32_t freqHz, uint32_t bwHz, int8_t txPowerDbm);
+
+// Höchste Sendeleistung (an der Antenne, Antennengewinn ≤ 2 dBi angenommen) für 5 mW ERP
+constexpr int8_t kMaxDbmNoDutyBand = 7;
 
 // Mindestabstand zwischen zwei Sendungen, damit der Duty Cycle eingehalten wird.
 uint32_t minTxSpacingMs(uint32_t airtimeUs, uint16_t dutyPermille);

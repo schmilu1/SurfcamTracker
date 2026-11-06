@@ -190,14 +190,32 @@ static void handleButton() {
 
 // ---------------------------------------------------------------- Funk
 
+const BandProfile* currentBand() {
+  for (const BandProfile* b : {&BAND_A, &BAND_B}) {
+    if (settings.freqHz == b->freqHz && settings.txPowerDbm == b->txPowerDbm) {
+      return b;
+    }
+  }
+  return nullptr;
+}
+
 bool applyRadioSettings() {
   return radio.begin(settings.freqHz, settings.sf, settings.bwHz, settings.txPowerDbm);
+}
+
+uint32_t txIntervalMs() {
+  if (settings.txIntervalMs != 0) return settings.txIntervalMs;
+  // Automatisch: kleinster Abstand, den der Duty Cycle erlaubt, auf ganze GNSS-Epochen aufgerundet
+  // (z. B. 10 Hz: 258 ms -> 300 ms bei Band A, 26 ms -> 100 ms bei Band B)
+  const uint32_t epoch = 1000 / gnss.rateHz();
+  const uint32_t minMs = radio.minSpacingMs(surfcam::kPacketSize);
+  return (minMs + epoch - 1) / epoch * epoch;
 }
 
 static void maybeSend() {
   const uint32_t now = millis();
   const bool valid = fixValid();
-  uint32_t interval = valid ? settings.txIntervalMs : timing::NO_FIX_TX_INTERVAL_MS;
+  uint32_t interval = valid ? txIntervalMs() : timing::NO_FIX_TX_INTERVAL_MS;
   // Neue Fixes kommen nur alle 1/Rate s. Ohne Toleranz würde der Sendezeitpunkt bis zu einer
   // Epoche hinter dem Ziel liegen (bei 10 Hz und 300 ms also 300-400 ms statt gleichmässig 300 ms).
   if (valid) {
@@ -266,13 +284,21 @@ void printStatus(Print& out) {
                  g_fix.altDm / 10.0, g_fix.speedCms / 100.0, g_fix.courseCdeg / 100.0);
     }
   }
-  out.printf("Funk:  %s, %.3f MHz, SF%u, %lu kHz, %d dBm, gesendet %lu, Fehler %lu\r\n",
-             radio.ok() ? "OK" : "FEHLER", settings.freqHz / 1e6, settings.sf,
+  const BandProfile* band = currentBand();
+  out.printf("Funk:  %s, Band %c, %.3f MHz, SF%u, %lu kHz, %d dBm, gesendet %lu, Fehler %lu\r\n",
+             radio.ok() ? "OK" : "FEHLER", band ? band->name : '-', settings.freqHz / 1e6, settings.sf,
              (unsigned long)(settings.bwHz / 1000), settings.txPowerDbm, (unsigned long)radio.txCount(),
              (unsigned long)radio.txFailed());
-  out.printf("       Ziel-Abstand %u ms, min. %lu ms (Duty Cycle %u %%), Ø Duty Cycle %.2f %%\r\n",
-             settings.txIntervalMs, (unsigned long)radio.minSpacingMs(surfcam::kPacketSize),
-             radio.dutyPermille() / 10, radio.averageDutyPercent());
+  char duty[16];
+  if (radio.dutyPermille() >= 1000) {
+    snprintf(duty, sizeof(duty), "keine Grenze");
+  } else {
+    snprintf(duty, sizeof(duty), "%u %%", radio.dutyPermille() / 10);
+  }
+  out.printf("       Sendeabstand %lu ms (%s, %.1f Pakete/s), min. %lu ms (Duty Cycle %s), Ø Sendezeit %.2f %%\r\n",
+             (unsigned long)txIntervalMs(), settings.txIntervalMs ? "fest" : "auto",
+             1000.0f / txIntervalMs(), (unsigned long)radio.minSpacingMs(surfcam::kPacketSize), duty,
+             radio.averageDutyPercent());
   out.printf("Akku:  %u mV\r\n", batteryMv());
   out.printf("Log:   %u Hz, %s, %lu Positionen, %u kB frei\r\n", trackLog.rate(),
              trackLog.currentName()[0] ? trackLog.currentName() : "keine aktive Session",

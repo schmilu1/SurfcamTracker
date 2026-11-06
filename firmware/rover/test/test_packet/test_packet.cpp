@@ -121,15 +121,21 @@ void test_airtime() {
 }
 
 void test_duty_cycle_band() {
-  TEST_ASSERT_EQUAL_UINT16(100, dutyCyclePermille(869525000, 250000));
-  TEST_ASSERT_EQUAL_UINT16(100, dutyCyclePermille(869525000, 125000));
-  TEST_ASSERT_EQUAL_UINT16(10, dutyCyclePermille(869525000, 500000));  // ragt aus dem Band
-  TEST_ASSERT_EQUAL_UINT16(10, dutyCyclePermille(868100000, 125000));
+  TEST_ASSERT_EQUAL_UINT16(100, dutyCyclePermille(869525000, 250000, 17));
+  TEST_ASSERT_EQUAL_UINT16(100, dutyCyclePermille(869525000, 125000, 20));
+  TEST_ASSERT_EQUAL_UINT16(10, dutyCyclePermille(869525000, 500000, 17));  // ragt aus dem Band
+  TEST_ASSERT_EQUAL_UINT16(10, dutyCyclePermille(868100000, 125000, 14));
+  // 869.70-870.00 MHz: ohne Grenze nur bis 7 dBm
+  TEST_ASSERT_EQUAL_UINT16(1000, dutyCyclePermille(869850000, 250000, 7));
+  TEST_ASSERT_EQUAL_UINT16(10, dutyCyclePermille(869850000, 250000, 8));
+  TEST_ASSERT_EQUAL_UINT16(10, dutyCyclePermille(869800000, 250000, 5));  // ragt unten heraus
+  TEST_ASSERT_EQUAL_UINT16(10, dutyCyclePermille(869900000, 250000, 5));  // ragt oben heraus
 }
 
 void test_min_spacing() {
   TEST_ASSERT_EQUAL_UINT32(258, minTxSpacingMs(25728, 100));   // 10 %
   TEST_ASSERT_EQUAL_UINT32(2573, minTxSpacingMs(25728, 10));   // 1 %
+  TEST_ASSERT_EQUAL_UINT32(26, minTxSpacingMs(25728, 1000));   // keine Grenze
 }
 
 int main(int, char**) {

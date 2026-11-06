@@ -11,7 +11,7 @@ void Settings::load() {
   if (!p.begin(kNamespace, true)) return;  // noch nichts gespeichert -> Standardwerte
   deviceId = p.getUChar("id", deviceId);
   gnssHz = p.getUChar("gnssHz", gnssHz);
-  txIntervalMs = p.getUShort("txInt", txIntervalMs);
+  txIntervalMs = p.getUShort("txIntv", txIntervalMs);  // neuer Schlüssel: 0 = automatisch
   txPowerDbm = p.getChar("txPow", txPowerDbm);
   freqHz = p.getULong("freq", freqHz);
   sf = p.getUChar("sf", sf);
@@ -26,7 +26,7 @@ void Settings::save() const {
   if (!p.begin(kNamespace, false)) return;
   p.putUChar("id", deviceId);
   p.putUChar("gnssHz", gnssHz);
-  p.putUShort("txInt", txIntervalMs);
+  p.putUShort("txIntv", txIntervalMs);
   p.putChar("txPow", txPowerDbm);
   p.putULong("freq", freqHz);
   p.putUChar("sf", sf);

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define ROVER_FW_VERSION "0.2.0"
+#define ROVER_FW_VERSION "0.3.0"
 
 namespace pins {
 constexpr int GPS_RX = 9;      // ESP RX  <- L76K TXD
@@ -34,7 +34,7 @@ constexpr int BUZZER = 4;
 namespace defaults {
 constexpr uint8_t DEVICE_ID = 1;
 constexpr uint8_t GNSS_HZ = 10;            // 1, 2, 4, 5 oder 10 (10 Hz: frische Position zu jedem Sendezeitpunkt)
-constexpr uint16_t TX_INTERVAL_MS = 300;   // Ziel-Sendeabstand bei Fix
+constexpr uint16_t TX_INTERVAL_MS = 0;     // Ziel-Sendeabstand bei Fix, 0 = automatisch (so schnell wie der Duty Cycle erlaubt)
 constexpr int8_t TX_POWER_DBM = 17;        // 2..20 dBm (PA_BOOST)
 constexpr uint32_t FREQ_HZ = 869525000UL;  // Mitte des Bands 869.40-869.65 MHz (10 % Duty Cycle)
 constexpr uint8_t SF = 7;
@@ -42,6 +42,17 @@ constexpr uint32_t BW_HZ = 250000UL;
 constexpr bool LEDS = true;
 constexpr uint8_t LOG_HZ = 5;              // Lograte: 0 (aus), 1, 2, 4, 5, 10
 }  // namespace defaults
+
+// Funkprofile für AT+BAND (setzen Frequenz und Sendeleistung; der automatische Sendeabstand
+// passt sich daraus an)
+struct BandProfile {
+  char name;
+  uint32_t freqHz;
+  int8_t txPowerDbm;
+  const char* text;
+};
+constexpr BandProfile BAND_A = {'A', 869525000UL, 17, "869.40-869.65 MHz, 10 % Duty Cycle, 17 dBm"};
+constexpr BandProfile BAND_B = {'B', 869850000UL, 7, "869.70-870.00 MHz, ohne Duty Cycle bis 5 mW ERP, 7 dBm"};
 
 namespace timing {
 constexpr uint32_t NO_FIX_TX_INTERVAL_MS = 2000;  // Lebenszeichen ohne Fix

@@ -8,17 +8,33 @@ Diese Firmware ersetzt die Dragino-Firmware vollständig: kein LoRaWAN, kein BLE
 
 | Parameter | Wert | Begründung |
 |---|---|---|
-| Frequenz | 869,525 MHz | Mitte des Bands 869,40–869,65 MHz: **10 % Duty Cycle, max. 500 mW ERP** (ETSI EN 300 220 / ERC 70-03) |
+| Frequenz | Band A: 869,525 MHz (Standard) / Band B: 869,85 MHz | siehe [Funkbänder](#funkbänder) |
 | Modulation | LoRa SF7, 250 kHz, CR 4/5, Präambel 8, CRC an, expliziter Header | 250 kHz ist die grösste Bandbreite, die ins Band passt |
 | Sync-Word | 0x34 (öffentlich, wie LoRaWAN) | damit das SX1303-Gateway die Pakete empfängt |
 | Paket | 19 Bytes, Sendezeit 25,7 ms | 16–19 Bytes brauchen gleich viele Symbole |
-| Sendeabstand | ≥ 258 ms (10 % Duty Cycle), Standard 300 ms | **≈ 3,3 Positionen/s** |
+| Sendeabstand | automatisch: so kurz wie der Duty Cycle erlaubt, auf GNSS-Epochen aufgerundet | Band A **300 ms (3,3/s)**, Band B **100 ms (10/s)** |
 | GNSS | 10 Hz, GPS + BeiDou + GLONASS (`$PCAS04,7`) | bei 10 Hz liegt zu jedem Sendezeitpunkt eine höchstens 100 ms alte Position vor, die Pakete gehen gleichmässig alle 300 ms raus |
-| Sendeleistung | 17 dBm (einstellbar 2–20) | genug Reserve für 500 m über Wasser |
+| Sendeleistung | Band A 17 dBm, Band B 7 dBm (einstellbar 2–20) | Band B: höchstens 5 mW ERP |
 
 Die Firmware erzwingt den Duty Cycle selbst: Nach jeder Sendung wartet sie mindestens das Neunfache der Sendezeit. Liegt die eingestellte Frequenz ausserhalb des 10-%-Bands, gilt automatisch 1 %.
 
 Ohne Fix sendet der Rover alle 2 s ein Lebenszeichen (Fix-Art 0, Akku, Satellitenzahl).
+
+### Funkbänder
+
+Umschalten mit `AT+BAND=A` / `AT+BAND=B`. Das Gateway muss auf dasselbe Band eingestellt sein (`surfcam/band.sh A|B` im Gateway-Repo, siehe [docs/gateway.md](../../docs/gateway.md)).
+
+| | Band A (Standard) | Band B |
+|---|---|---|
+| Frequenz | 869,525 MHz (Band 869,40–869,65 MHz) | 869,85 MHz (Band 869,70–870,00 MHz) |
+| Regel (ERC/REC 70-03) | 10 % Duty Cycle, bis 500 mW ERP | **kein Duty Cycle** bis 5 mW ERP (darüber 1 %) |
+| Sendeleistung | 17 dBm | 7 dBm (Antennengewinn ≤ 2 dBi angenommen) |
+| Sendeabstand (auto, 10 Hz GNSS) | 300 ms, 3,3 Pakete/s | 100 ms, 10 Pakete/s |
+| Reserve auf 500 m (gerechnet, freie Sicht) | ≈ 52 dB | ≈ 40 dB |
+
+Band B liefert dreimal so viele Positionen, hat aber ≈ 10 dB weniger Reserve. Welches am Strand besser ist, zeigt der Reichweitentest ([tools/rangetest](../../tools/rangetest)).
+
+Der automatische Sendeabstand (`AT+TXINT=0`) ergibt sich aus Duty Cycle, Paketlänge, SF, Bandbreite und GNSS-Rate: kürzester erlaubter Abstand, aufgerundet auf ganze GNSS-Epochen. Wird z. B. in Band B die Leistung über 7 dBm gestellt, gilt 1 % Duty Cycle und der Abstand steigt automatisch auf ≈ 2,6 s.
 
 ## Paketformat (für den Empfänger)
 
@@ -67,7 +83,8 @@ Unter 3,3 V Akkuspannung (10 s lang) schaltet sich der Rover selbst ab.
 | `ATI` / `AT+INFO` | Status: GNSS-Rate (Soll/gemessen), Fix, Funk, Duty Cycle, Akku, Log | |
 | `AT+ID=<0..31>` | Geräte-ID im Paket | 1 |
 | `AT+RATE=<1\|2\|4\|5\|10>` | GNSS-Rate in Hz (wirkt sofort) | 10 |
-| `AT+TXINT=<ms>` | Ziel-Sendeabstand bei Fix | 300 |
+| `AT+BAND=<A\|B>` | Funkprofil: setzt Frequenz und Sendeleistung, siehe [Funkbänder](#funkbänder) | A |
+| `AT+TXINT=<ms>` | Sendeabstand bei Fix; 0 = automatisch (kürzester erlaubter Abstand) | 0 |
 | `AT+TXP=<2..20>` | Sendeleistung in dBm | 17 |
 | `AT+FREQ=<Hz>` | Frequenz (863–870 MHz) | 869525000 |
 | `AT+SF=<7..12>` | Spreading Factor | 7 |
