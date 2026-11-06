@@ -353,6 +353,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path in ("/", "/index.html"):
                 return self._static("index.html", "text/html; charset=utf-8")
+            # Bibliotheken lokal (Leaflet), damit die Seite auch ohne Internet läuft (Hotspot)
+            m = re.match(r"^/vendor/([a-z0-9-]+/(?:images/)?[A-Za-z0-9._-]+\.(js|css|png))$", path)
+            if m:
+                ctype = {"js": "text/javascript", "css": "text/css", "png": "image/png"}[m.group(2)]
+                return self._static("vendor/" + m.group(1), ctype)
             if path == "/api/state":
                 secs = int(parse_qs(url.query).get("seconds", ["600"])[0])
                 return self._json({"tracker": tracker.info(), "mqtt": packets.mqtt,

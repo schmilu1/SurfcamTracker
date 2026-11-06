@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SurfCam Test</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.min.css">
 <style>
 :root {
   --bg: #f4f6f8; --card: #ffffff; --text: #1b2430; --muted: #66727f; --line: #dde3e9;
@@ -232,7 +232,7 @@ details.free summary { cursor: pointer; }
 </section>
 
 </main>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="vendor/leaflet/leaflet.min.js"></script>
 <script>
 "use strict";
 const $ = (s, r = document) => r.querySelector(s);
@@ -263,7 +263,10 @@ const fmt = (v, d = 1) => v === null || v === undefined ? "–" : Number(v).toFi
 let map = null, trackLine = null, marker = null;
 if (window.L) {
   map = L.map("map", { zoomControl: true }).setView([46.8, 8.2], 7);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" })
+    .on("tileerror", () => { $("#mapOff").textContent = "Kartenhintergrund braucht Internet. Spur und Position werden trotzdem gezeichnet."; $("#mapOff").hidden = false; })
+    .on("tileload", () => { $("#mapOff").hidden = true; })
+    .addTo(map);
   trackLine = L.polyline([], { color: "#0b6bcb", weight: 3 }).addTo(map);
   marker = L.circleMarker([0, 0], { radius: 7, color: "#fff", weight: 2, fillColor: "#e53935", fillOpacity: 1 });
 } else {

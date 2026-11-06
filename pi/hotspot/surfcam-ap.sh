@@ -35,6 +35,16 @@ if ! $IW dev "$AP" info >/dev/null 2>&1; then
   sleep 2
 fi
 
+# Internet für Geräte im Hotspot: Docker setzt die FORWARD-Kette auf DROP, NetworkManager
+# übernimmt nur NAT. Erlaubt wird nur Hotspot -> Client-WLAN (nicht zu den Docker-Netzen).
+IPT=/usr/sbin/iptables
+if $IPT -n -L DOCKER-USER >/dev/null 2>&1; then
+  $IPT -C DOCKER-USER -i "$AP" -o "$STA" -j ACCEPT 2>/dev/null ||
+    $IPT -I DOCKER-USER -i "$AP" -o "$STA" -j ACCEPT
+  $IPT -C DOCKER-USER -i "$STA" -o "$AP" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null ||
+    $IPT -I DOCKER-USER -i "$STA" -o "$AP" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+fi
+
 sta_freq() { $IW dev "$STA" link 2>/dev/null | awk '/freq:/ { print int($2) }'; }
 ap_active() { nmcli -t -f GENERAL.STATE con show "$CON" 2>/dev/null | grep -q activated; }
 
