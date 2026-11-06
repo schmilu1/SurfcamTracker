@@ -7,7 +7,7 @@ Webserver auf dem Pi zum Testen: zeigt die Funkpakete des Rovers live an und ste
 | Tab | Inhalt |
 |---|---|
 | Live | letztes Paket (Geschwindigkeit, Fix, Bewegung, RSSI/SNR, Pakete/s, Verlust, Akku), Karte mit Spur der letzten 5 min, Verläufe der letzten 2 min, empfangene Pakete als CSV |
-| Tracker | nur mit USB: Status, alle Einstellungen (Funkband inkl. Gateway, GNSS-Rate, Sendeabstand, Leistung, Frequenz, SF, Bandbreite, ID, Lograte, Bewegung loggen, LEDs), Neustart, Ausschalten, Werkseinstellungen, Konsole für beliebige AT-Befehle |
+| Tracker | nur mit USB: Status; Einstellungen als Formular (mehrere Werte auf einmal, Funkband inkl. Gateway); **Befehle**: jeder AT-Befehl als Button, mit Eingabefeld und Hinweis wo ein Wert nötig ist, „Abfragen“ zeigt den aktuellen Wert, Felder sind mit den aktuellen Werten vorbelegt, Sessions zum Herunterladen/Löschen als Auswahl; Konsole mit der vollständigen Ausgabe (eigener Befehl nur noch aufklappbar) |
 | Log | nur mit USB: Sessions im Flash des Trackers, CSV herunterladen, löschen |
 | Gateway | aktives Funkband, Zustand des Paket-Forwarders, Band umschalten |
 

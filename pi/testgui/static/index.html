@@ -70,6 +70,19 @@ pre#console { background: #0d1117; color: #c9d1d9; border-radius: 8px; padding: 
 .notice { padding: 10px 12px; border-radius: 8px; background: var(--bg); color: var(--muted); }
 .check { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 14px; margin-top: 8px; }
 .check input { width: auto; margin: 0; }
+.cmdgroup { font-size: 13px; color: var(--muted); font-weight: 600; margin: 12px 0 6px; }
+.cmdgroup:first-child { margin-top: 0; }
+.cmd { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(170px, 1.3fr) minmax(190px, 1fr); gap: 8px 12px;
+  align-items: start; background: var(--bg); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
+.cmd .n { font-size: 14px; font-weight: 600; }
+.cmd .n code { display: block; font-size: 12px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+.cmd .in input, .cmd .in select { margin-top: 0; }
+.cmd .acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.cmd .res { font-size: 12px; color: var(--muted); flex-basis: 100%; overflow-wrap: anywhere; }
+.cmd .res.ok { color: var(--ok); } .cmd .res.bad { color: var(--bad); }
+details.free { margin-top: 8px; font-size: 13px; color: var(--muted); }
+details.free summary { cursor: pointer; }
+@media (max-width: 640px) { .cmd { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -169,20 +182,17 @@ pre#console { background: #0d1117; color: #c9d1d9; border-radius: 8px; padding: 
       <div class="msg" id="setMsg"></div>
     </div>
     <div class="card">
-      <h2>Aktionen</h2>
-      <div class="btns">
-        <button class="b" data-cmd="ATI">Status (ATI)</button>
-        <button class="b" data-cmd="AT+MOTION">Bewegung live (10 s)</button>
-        <button class="b" data-cmd="ATZ">Neustart</button>
-        <button class="b danger" data-cmd="AT+SLEEP" data-confirm="Tracker ausschalten? Einschalten danach nur per Taste (1 s halten) oder USB-Reset.">Ausschalten</button>
-        <button class="b danger" data-cmd="AT+FDR" data-confirm="Alle Einstellungen auf Werkseinstellungen zurücksetzen?">Werkseinstellungen</button>
-      </div>
+      <h2>Befehle</h2>
+      <div class="hint" style="margin-bottom:8px">Jeder Befehl einzeln. Die Antwort steht rechts neben dem Button, die vollständige Ausgabe in der Konsole unten.</div>
+      <div id="cmdList"></div>
     </div>
   </div>
   <div class="card">
     <h2>Konsole</h2>
     <pre id="console"></pre>
-    <div class="row"><input id="cmdIn" placeholder="AT-Befehl, z. B. AT+HELP" autocapitalize="characters" autocomplete="off"><button class="b" id="cmdSend">Senden</button></div>
+    <details class="free"><summary>Eigenen AT-Befehl eingeben</summary>
+      <div class="row"><input id="cmdIn" placeholder="AT-Befehl, z. B. AT+HELP" autocapitalize="characters" autocomplete="off"><button class="b" id="cmdSend">Senden</button></div>
+    </details>
   </div>
 </section>
 
@@ -365,6 +375,7 @@ function renderTracker() {
     kv("Akku", `${(s.battery_mv / 1000).toFixed(2)} V`) +
     kv("Log", l.session ? l.records + " Pos." : "keine Session", `${s.settings.lograte} Hz · ${l.free_kb} kB frei`);
   fillForm(s.settings);
+  fillCmdList(s.settings);
 }
 
 let formBase = null;
@@ -403,12 +414,133 @@ $("#saveBtn").onclick = async () => {
   const s = await api("/api/tracker/status", {});
   if (s.ok) { state.tracker.status = s.status; renderTracker(); }
 };
-$$("button[data-cmd]").forEach(b => b.onclick = async () => {
-  if (b.dataset.confirm && !confirm(b.dataset.confirm)) return;
-  b.disabled = true;
-  await api("/api/tracker/cmd", { cmd: b.dataset.cmd });
-  b.disabled = false;
-});
+// Befehlsliste: jeder AT-Befehl als Button, mit Eingabefeld wenn ein Wert nötig ist.
+// set: Schlüssel in den AT+JSON-Einstellungen (Feld wird mit dem aktuellen Wert vorbelegt)
+const OUT = "Ausgabe in der Konsole";
+const sel = (...o) => ({ type: "select", options: o.map(x => Array.isArray(x) ? x : [String(x), String(x)]) });
+const num = (min, max, step = 1) => ({ type: "number", min, max, step });
+const CMDS = [
+  ["Allgemein", [
+    { cmd: "AT", label: "Verbindungstest", hint: "Antwortet mit OK" },
+    { cmd: "ATI", label: "Status anzeigen", hint: OUT },
+    { cmd: "AT+JSON", label: "Status als JSON", hint: OUT },
+    { cmd: "AT+HELP", label: "Befehlsübersicht", hint: OUT },
+  ]],
+  ["Funk", [
+    { cmd: "AT+BAND", label: "Funkband", set: "band", input: sel(["A", "A – 869,525 MHz, 17 dBm"], ["B", "B – 869,85 MHz, 7 dBm"]),
+      hint: "A: 10 % Sendezeit, mehr Reichweite. B: ohne Grenze, schneller. Nur Tracker – Gateway im Tab Gateway oder oben bei Einstellungen", query: true },
+    { cmd: "AT+TXINT", label: "Sendeabstand", set: "txint", input: num(0, 60000, 50), hint: "ms, 0 = automatisch (kürzester erlaubter Abstand)", query: true },
+    { cmd: "AT+TXP", label: "Sendeleistung", set: "txp", input: num(2, 20), hint: "dBm, 2 bis 20. Band B ohne Grenze nur bis 7", query: true },
+    { cmd: "AT+FREQ", label: "Frequenz", set: "freq", input: num(863000000, 870000000, 25000), hint: "Hz, 863000000 bis 870000000. Gateway muss gleich eingestellt sein", query: true },
+    { cmd: "AT+SF", label: "Spreading Factor", set: "sf", input: sel(7, 8, 9, 10, 11, 12), hint: "Gateway empfängt nur SF7", query: true },
+    { cmd: "AT+BW", label: "Bandbreite", set: "bw", input: sel(["125000", "125 kHz"], ["250000", "250 kHz"], ["500000", "500 kHz"]), hint: "Gateway erwartet 250 kHz", query: true },
+    { cmd: "AT+ID", label: "Geräte-ID", set: "id", input: num(0, 31), hint: "0 bis 31, steht in jedem Funkpaket", query: true },
+  ]],
+  ["GNSS", [
+    { cmd: "AT+RATE", label: "GNSS-Rate", set: "rate", input: sel(1, 2, 4, 5, 10), hint: "Positionen pro Sekunde (Hz)", query: true },
+    { cmd: "AT+NMEA", label: "NMEA-Rohdaten", input: sel(["1", "anzeigen"], ["0", "aus"]), hint: "Rohdaten des GNSS in der Konsole, wird nicht gespeichert", query: true },
+    { cmd: "AT+GNSS", label: "Befehl an GNSS", btn: "Senden", input: { type: "text", placeholder: "PCAS06,0" },
+      hint: "CASIC-Befehl ohne $ und Prüfsumme, z. B. PCAS06,0 (Firmware-Version des GNSS abfragen)" },
+  ]],
+  ["Log", [
+    { cmd: "AT+LOGRATE", label: "Lograte", set: "lograte", input: sel(["0", "aus"], 1, 2, 4, 5, 10), hint: "Positionen pro Sekunde im Flash (Hz)", query: true },
+    { cmd: "AT+LOGMOTION", label: "Bewegung loggen", set: "logmotion", input: sel(["1", "ja"], ["0", "nein"]), hint: "gilt ab der nächsten Session", query: true },
+    { cmd: "AT+LOG", label: "Sessions auflisten", hint: OUT + "; füllt auch die Auswahl unten" },
+    { cmd: "AT+LOGDUMP", label: "Session herunterladen", input: { type: "session" }, hint: "als CSV-Datei, ≈ 100 Positionen/s", download: true },
+    { cmd: "AT+LOGDEL", label: "Session löschen", btn: "Löschen", danger: true, input: { type: "session", all: true }, hint: "ALL löscht alle Sessions",
+      confirm: v => v === "ALL" ? "Alle Sessions im Tracker löschen?" : `Session ${v} löschen?` },
+  ]],
+  ["Gerät", [
+    { cmd: "AT+LED", label: "Status-LEDs", set: "led", input: sel(["1", "an"], ["0", "aus"]), query: true },
+    { cmd: "AT+MOTION", label: "Bewegung live", hint: "10 s lang alle 0,5 s, " + OUT },
+    { cmd: "AT+BTN", label: "Tastentest", hint: "10 s lang Taste drücken, " + OUT },
+    { cmd: "ATZ", label: "Neustart", confirm: () => "Tracker neu starten?" },
+    { cmd: "AT+SLEEP", label: "Ausschalten", danger: true, hint: "Einschalten: Taste 1 s halten oder USB-Reset",
+      confirm: () => "Tracker ausschalten? Einschalten danach nur per Taste (1 s halten) oder USB-Reset." },
+    { cmd: "AT+FDR", label: "Werkseinstellungen", danger: true, hint: "setzt alle Einstellungen zurück und startet neu",
+      confirm: () => "Alle Einstellungen auf Werkseinstellungen zurücksetzen?" },
+  ]],
+];
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+function buildCmdList() {
+  const list = $("#cmdList");
+  list.innerHTML = CMDS.map(([g, items]) => `<div class="cmdgroup">${g}</div>` + items.map(c => {
+    const inp = c.input;
+    let field = "";
+    if (inp && inp.type === "select") field = `<select>${inp.options.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join("")}</select>`;
+    else if (inp && inp.type === "session") field = `<select data-session="${inp.all ? 1 : 0}"><option value="">– zuerst Sessions auflisten –</option></select>`;
+    else if (inp) field = `<input type="${inp.type}" ${inp.min != null ? `min="${inp.min}" max="${inp.max}" step="${inp.step}" inputmode="numeric"` : ""} placeholder="${esc(inp.placeholder || "")}" autocomplete="off" autocapitalize="characters">`;
+    const main = c.btn || (c.download ? "Herunterladen" : inp ? "Setzen" : "Ausführen");
+    return `<div class="cmd" data-cmd="${c.cmd}">
+      <div class="n">${esc(c.label)}<code>${c.cmd}${inp ? "=…" : ""}</code></div>
+      <div class="in">${field}${c.hint ? `<div class="hint">${esc(c.hint)}</div>` : ""}</div>
+      <div class="acts"><button class="b ${c.danger ? "danger" : "primary"}" data-run>${main}</button>${c.query ? `<button class="b" data-query title="${c.cmd}?">Abfragen</button>` : ""}<div class="res"></div></div>
+    </div>`;
+  }).join("")).join("");
+  const byCmd = Object.fromEntries(CMDS.flatMap(([, items]) => items.map(c => [c.cmd, c])));
+  $$(".cmd", list).forEach(row => {
+    const c = byCmd[row.dataset.cmd];
+    const field = $(".in input, .in select", row);
+    const res = $(".res", row);
+    if (field) field.addEventListener("input", () => { field.dataset.edited = "1"; });
+    if (field && field.tagName === "INPUT") field.onkeydown = e => { if (e.key === "Enter") $("[data-run]", row).click(); };
+    const run = async (cmd, btn) => {
+      btn.disabled = true;
+      res.className = "res"; res.textContent = "läuft …";
+      const r = await api("/api/tracker/cmd", { cmd });
+      btn.disabled = false;
+      const lines = (r.lines || []).filter(l => l && l !== "OK" && l.toUpperCase() !== cmd.toUpperCase());
+      const last = lines.slice(-1)[0] || "";
+      res.className = "res " + (r.ok ? "ok" : "bad");
+      res.textContent = r.ok ? (lines.length > 2 ? "OK – " + OUT : "OK" + (last ? " · " + last : "")) : (r.error || last || "Fehler");
+      if (r.ok && field) delete field.dataset.edited;
+      if (r.ok && (c.cmd === "AT+LOG" || c.cmd === "AT+LOGDEL")) loadLogs();
+      if (r.ok && c.set) refreshStatus();
+    };
+    $("[data-run]", row).onclick = e => {
+      const btn = e.currentTarget;
+      const v = field ? field.value.trim() : "";
+      if (field && !v) {
+        res.className = "res bad";
+        res.textContent = c.input.type === "session" ? "Session wählen (zuerst „Sessions auflisten“)" : "Wert eingeben";
+        return;
+      }
+      if (c.download) {
+        location.href = `/api/tracker/logs/${encodeURIComponent(v)}.csv`;
+        res.className = "res"; res.textContent = "Download gestartet, Fortschritt im Tab Log";
+        return;
+      }
+      if (c.confirm && !confirm(c.confirm(v))) return;
+      run(field ? `${c.cmd}=${v}` : c.cmd, btn);
+    };
+    const q = $("[data-query]", row);
+    if (q) q.onclick = e => run(c.cmd + "?", e.currentTarget);
+  });
+}
+// Eingabefelder mit den aktuellen Werten vorbelegen (nicht während der Eingabe)
+function fillCmdList(st) {
+  for (const [, items] of CMDS) for (const c of items) {
+    if (!c.set || st[c.set] == null) continue;
+    const f = $(`.cmd[data-cmd="${c.cmd}"] .in input, .cmd[data-cmd="${c.cmd}"] .in select`);
+    if (!f || f.dataset.edited || f === document.activeElement) continue;
+    f.value = String(st[c.set]);
+  }
+}
+function fillSessions(sessions) {
+  $$("select[data-session]").forEach(f => {
+    const cur = f.value;
+    const opts = sessions.slice().reverse()  // neueste zuerst
+      .map(s => `<option value="${esc(s.name)}">${esc(s.name)}${s.active ? " (aktiv)" : ""} · ${s.records} Pos.</option>`);
+    if (f.dataset.session === "1" && opts.length) opts.push(`<option value="ALL">ALL – alle Sessions</option>`);
+    f.innerHTML = opts.length ? opts.join("") : `<option value="">– keine Sessions im Flash –</option>`;
+    if (cur && [...f.options].some(o => o.value === cur)) f.value = cur;
+  });
+}
+async function refreshStatus() {
+  const s = await api("/api/tracker/status", {});
+  if (s.ok) { state.tracker.status = s.status; renderTracker(); }
+}
+buildCmdList();
 async function sendCmd() {
   const c = $("#cmdIn").value.trim();
   if (!c) return;
@@ -432,6 +564,7 @@ async function loadLogs() {
   const r = await api("/api/tracker/logs");
   const tb = $("#logTable tbody");
   if (!r.ok) { msg($("#logMsg"), r.error || "Fehler", false); return; }
+  fillSessions(r.sessions);
   $("#logTable").hidden = !r.sessions.length;
   $("#logSummary").textContent = r.sessions.length ? r.summary : "Keine Sessions im Flash.";
   tb.innerHTML = r.sessions.map(s => {
@@ -490,6 +623,7 @@ async function init() {
   s.console.forEach(addConsole);
   $("#console").scrollTop = $("#console").scrollHeight;
   renderMqtt(); renderTracker(); renderGateway(); renderLive();
+  if (s.tracker && s.tracker.connected) loadLogs();
 }
 function connect() {
   const es = new EventSource("/api/events");
@@ -498,7 +632,7 @@ function connect() {
     const t = JSON.parse(e.data);
     const was = state.tracker && state.tracker.connected;
     state.tracker = t; renderTracker(); renderGateway();
-    if (t.connected && !was && $("#log").classList.contains("active")) loadLogs();
+    if (t.connected && !was) loadLogs();
   });
   es.addEventListener("console", e => addConsole(JSON.parse(e.data)));
   es.addEventListener("mqtt", e => { state.mqtt = JSON.parse(e.data); renderMqtt(); });
