@@ -15,7 +15,7 @@ Der WLAN-Chip des Pi 5 kann einen Client und einen Hotspot gleichzeitig betreibe
 - stellt den Hotspot auf den Kanal des Client-WLANs; ohne Client-WLAN auf 2,4 GHz Kanal 6 (5 GHz Kanal 36–64 ist in der EU nur drinnen erlaubt),
 - pausiert den Hotspot höchstens alle 5 min für 20 s, wenn ein bekanntes WLAN in Reichweite ist, der Client sich aber nicht verbindet.
 
-Der Hotspot vergibt Adressen per DHCP (NetworkManager, `ipv4.method shared`). Ist der Pi zusätzlich in deinem WLAN, leitet er den Internetzugang weiter, sonst hat das Handy im Hotspot kein Internet (die Karte im GUI fehlt dann).
+Der Hotspot vergibt Adressen per DHCP (NetworkManager, `ipv4.method shared`). Ist der Pi zusätzlich in deinem WLAN, leitet er den Internetzugang weiter, sonst hat das Handy im Hotspot kein Internet (nur der Kartenhintergrund im GUI fehlt dann, Leaflet liegt lokal im GUI). Weil Docker die FORWARD-Kette auf DROP setzt, trägt `surfcam-ap.sh` zwei Regeln in `DOCKER-USER` ein (nur Hotspot ↔ `wlan0`).
 
 **Getestet (06.11.2026):** Hotspot auf Kanal 36 neben dem Heim-WLAN; Heim-WLAN getrennt und wieder verbunden, während der Hotspot lief: der Client verbindet sich, der Chip nimmt den Hotspot auf den neuen Kanal mit, beide bleiben aktiv.
 
