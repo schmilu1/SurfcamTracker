@@ -89,6 +89,7 @@ class DailyCsv:
         self.w = None
         self.path = None
         self.rows = 0
+        self.flushed = 0.0
         os.makedirs(folder, exist_ok=True)
 
     def write(self, row, now=None):
@@ -98,8 +99,9 @@ class DailyCsv:
                 self._open(now)
             self.w.writerow(row)
             self.rows += 1
-            if self.rows % 50 == 0:
+            if time.time() - self.flushed >= 5:  # spätestens alle 5 s auf die SD-Karte
                 self.f.flush()
+                self.flushed = time.time()
 
     def _open(self, now):
         if self.f:
