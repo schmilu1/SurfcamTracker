@@ -17,6 +17,7 @@ Die Karte braucht Internet (OpenStreetMap). Ohne Internet funktioniert alles and
 
 - Beim Einstecken in den Pi startet der Tracker neu (Auto-Reset-Schaltung des USB-Wandlers). Das Log im Flash bleibt erhalten.
 - Der Log-Download läuft über USB mit ≈ 100 Positionen/s: eine Stunde bei 5 Hz dauert ≈ 3 min. Währenddessen sind keine anderen Befehle möglich.
+- iPhone, Symbol auf dem Home-Bildschirm: beim Hinzufügen «Als Web-App öffnen» ausschalten. Sonst bricht die Web-App mit «HTTPS-only» ab, weil das GUI nur HTTP spricht; als Lesezeichen öffnet Safari die Seite nach einer Warnung («Website trotzdem besuchen»).
 - Ohne Anmeldung: Wer im WLAN oder im Hotspot ist, kann den Tracker einstellen. Den Hotspot deshalb nur mit Passwort betreiben.
 
 ## Aufbau
