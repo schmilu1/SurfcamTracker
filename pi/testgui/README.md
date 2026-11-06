@@ -10,6 +10,7 @@ Webserver auf dem Pi zum Testen: zeigt die Funkpakete des Rovers live an und ste
 | Tracker | nur mit USB: Status; Einstellungen als Formular (mehrere Werte auf einmal, Funkband inkl. Gateway); **Befehle**: jeder AT-Befehl als Button, mit Eingabefeld und Hinweis wo ein Wert nötig ist, „Abfragen“ zeigt den aktuellen Wert, Felder sind mit den aktuellen Werten vorbelegt, Sessions zum Herunterladen/Löschen als Auswahl; Konsole mit der vollständigen Ausgabe (eigener Befehl nur noch aufklappbar) |
 | Log | nur mit USB: Sessions im Flash des Trackers, CSV herunterladen, löschen |
 | Gateway | aktives Funkband, Zustand des Paket-Forwarders, Band umschalten |
+| Hilfe | diese README und die READMEs zu Hotspot, Tracker-Firmware und Gateway, direkt aus dem Repo auf dem Pi (nach `git pull` aktuell, ohne Internet lesbar) |
 
 Die Karte braucht Internet (OpenStreetMap). Ohne Internet funktioniert alles andere weiter.
 
@@ -75,4 +76,5 @@ python3 server.py --port 8090 --mqtt mildersurf.local --tracker /dev/cu.usbseria
 | GET | `/api/tracker/logs` | Sessions (`AT+LOG`) |
 | GET | `/api/tracker/logs/<session>.csv` | Session herunterladen (`AT+LOGDUMP`, gestreamt) |
 | GET | `/api/gateway` | Funkband und Zustand des Forwarders |
+| GET | `/api/help` | README-Dateien für den Tab Hilfe (Markdown) |
 | POST | `/api/gateway/band` `{"band": "A", "tracker": true, "gateway": true}` | Band umschalten (Tracker und/oder Gateway) |

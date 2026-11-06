@@ -31,6 +31,14 @@ import uplink
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "static")
+REPO = os.path.dirname(os.path.dirname(HERE))
+# Hilfe-Tab: README-Dateien aus dem Repo (id, Titel, Pfad relativ zum Repo)
+HELP_DOCS = [
+    ("gui", "Test-GUI", "pi/testgui/README.md"),
+    ("hotspot", "Hotspot", "pi/hotspot/README.md"),
+    ("tracker", "Tracker-Firmware", "firmware/rover/README.md"),
+    ("gateway", "Gateway", "docs/gateway.md"),
+]
 DEFAULT_BAND_SH = os.path.expanduser("~/sx1302_hal_rpi5-master/surfcam/band.sh")
 SESSION_RE = re.compile(r"^(\d{6}_\d{6})\s+(\d+) Segmente\s+(\d+) Bytes\s+(\d+) Positionen(\s+\(aktiv\))?")
 
@@ -375,6 +383,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 return self.wfile.write(body)
+            if path == "/api/help":
+                docs = []
+                for doc_id, title, rel in HELP_DOCS:
+                    try:
+                        with open(os.path.join(REPO, rel), encoding="utf-8") as f:
+                            md = f.read()
+                    except OSError:
+                        md = "_Datei %s nicht gefunden._" % rel
+                    docs.append({"id": doc_id, "title": title, "path": rel, "md": md})
+                return self._json({"docs": docs})
             if path == "/api/gateway":
                 return self._json(gateway_info(self.band_sh))
             if path == "/api/tracker/logs":

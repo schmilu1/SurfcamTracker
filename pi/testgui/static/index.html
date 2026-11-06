@@ -83,6 +83,22 @@ pre#console { background: #0d1117; color: #c9d1d9; border-radius: 8px; padding: 
 details.free { margin-top: 8px; font-size: 13px; color: var(--muted); }
 details.free summary { cursor: pointer; }
 @media (max-width: 640px) { .cmd { grid-template-columns: 1fr; } }
+nav { overflow-x: auto; }
+#helpNav button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.md { margin-top: 12px; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+.md h1 { font-size: 22px; margin: 4px 0 10px; }
+.md h2 { font-size: 18px; margin: 22px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line); color: var(--text); text-transform: none; letter-spacing: 0; }
+.md h3 { font-size: 16px; margin: 18px 0 6px; }
+.md p { margin: 8px 0; }
+.md ul, .md ol { margin: 8px 0; padding-left: 22px; }
+.md li { margin: 3px 0; }
+.md code { font: 13px ui-monospace, Menlo, Consolas, monospace; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+.md pre { background: var(--bg); border-radius: 8px; padding: 10px; overflow-x: auto; }
+.md pre code { padding: 0; background: none; white-space: pre; }
+.md .tbl { overflow-x: auto; margin: 8px 0; }
+.md table { font-size: 14px; }
+.md th, .md td { vertical-align: top; overflow-wrap: normal; min-width: 4em; }
+.md a { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -101,6 +117,7 @@ details.free summary { cursor: pointer; }
     <button data-tab="tracker">Tracker</button>
     <button data-tab="log">Log</button>
     <button data-tab="gateway">Gateway</button>
+    <button data-tab="help">Hilfe</button>
   </nav>
 </header>
 <main>
@@ -231,6 +248,13 @@ details.free summary { cursor: pointer; }
   </div>
 </section>
 
+<section id="help">
+  <div class="card">
+    <div class="btns" id="helpNav" style="margin-top:0"></div>
+    <div class="md" id="helpBody"><div class="notice">wird geladen …</div></div>
+  </div>
+</section>
+
 </main>
 <script src="vendor/leaflet/leaflet.min.js"></script>
 <script>
@@ -246,6 +270,7 @@ $$("nav button").forEach(b => b.onclick = () => {
   $$("main section").forEach(s => s.classList.toggle("active", s.id === b.dataset.tab));
   if (b.dataset.tab === "live" && map) setTimeout(() => map.invalidateSize(), 50);
   if (b.dataset.tab === "log") loadLogs();
+  if (b.dataset.tab === "help") loadHelp();
   try { localStorage.setItem("tab", b.dataset.tab); } catch (e) {}
 });
 
@@ -589,6 +614,115 @@ $("#logDelAll").onclick = async () => {
   msg($("#logMsg"), r.ok ? (r.lines || []).join(" ") : (r.error || "Fehler"), r.ok);
   loadLogs();
 };
+
+// ---------------------------------------------------------------- Hilfe (README-Dateien aus dem Repo)
+const GITHUB = "https://github.com/schmilu1/SurfcamTracker/blob/main/";
+let helpDocs = null, helpCur = null;
+const slug = t => t.toLowerCase().replace(/<[^>]+>/g, "").replace(/[^\p{L}\p{N} _-]/gu, "").trim().replace(/ /g, "-");
+function resolvePath(base, rel) {
+  const out = [];
+  for (const p of (base.split("/").slice(0, -1).join("/") + "/" + rel).split("/")) {
+    if (p === "..") out.pop(); else if (p && p !== ".") out.push(p);
+  }
+  return out.join("/");
+}
+function mdLink(text, href, base) {
+  if (/^https?:/.test(href)) return `<a href="${esc(href)}" target="_blank" rel="noopener">${text}</a>`;
+  if (href.startsWith("#")) return `<a href="#" data-anchor="${esc(decodeURIComponent(href.slice(1)))}">${text}</a>`;
+  const [file, anchor] = href.split("#");
+  const path = resolvePath(base, file);
+  const doc = helpDocs.find(d => d.path === path || d.path === path + "/README.md" || d.path === path.replace(/\/$/, "") + "/README.md");
+  if (doc) return `<a href="#" data-doc="${doc.id}"${anchor ? ` data-anchor="${esc(anchor)}"` : ""}>${text}</a>`;
+  return `<a href="${esc(GITHUB + path)}" target="_blank" rel="noopener" title="auf GitHub (braucht Internet)">${text}</a>`;
+}
+function mdInline(t, base) {
+  return t.split(/(`[^`]+`)/).map(part => {
+    if (/^`[^`]+`$/.test(part)) return `<code>${esc(part.slice(1, -1).replace(/\\\|/g, "|"))}</code>`;
+    return esc(part.replace(/\\\|/g, "|"))
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[\s(+·\/])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
+      .replace(/(^|[\s(])_([^_]+)_(?=[\s).,:;]|$)/g, "$1<em>$2</em>")
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, txt, href) => mdLink(txt, href.replace(/&amp;/g, "&"), base));
+  }).join("");
+}
+function mdRender(md, base) {
+  const L = md.replace(/\r/g, "").split("\n");
+  const out = [];
+  const cells = r => r.trim().replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map(c => c.trim());
+  const isBlock = l => /^(```|#{1,6}\s|\s*[-*]\s|\s*\d+\.\s|\|)/.test(l);
+  for (let i = 0; i < L.length;) {
+    const l = L[i];
+    if (!l.trim()) { i++; continue; }
+    if (l.startsWith("```")) {
+      const code = [];
+      for (i++; i < L.length && !L[i].startsWith("```"); i++) code.push(L[i]);
+      i++;
+      out.push(`<pre><code>${esc(code.join("\n"))}</code></pre>`);
+      continue;
+    }
+    let m = l.match(/^(#{1,6})\s+(.*)/);
+    if (m) {
+      const n = Math.min(m[1].length, 3), h = mdInline(m[2], base);
+      out.push(`<h${n} id="h-${esc(slug(m[2]))}">${h}</h${n}>`);
+      i++;
+      continue;
+    }
+    if (l.trim().startsWith("|") && i + 1 < L.length && /^\s*\|?[\s:|-]+\|?\s*$/.test(L[i + 1])) {
+      const head = cells(l);
+      const rows = [];
+      for (i += 2; i < L.length && L[i].trim().startsWith("|"); i++) rows.push(cells(L[i]));
+      out.push(`<div class="tbl"><table><thead><tr>${head.map(c => `<th>${mdInline(c, base)}</th>`).join("")}</tr></thead><tbody>` +
+        rows.map(r => `<tr>${r.map(c => `<td>${mdInline(c, base)}</td>`).join("")}</tr>`).join("") + `</tbody></table></div>`);
+      continue;
+    }
+    m = l.match(/^\s*([-*]|\d+\.)\s+/);
+    if (m) {
+      const ordered = /\d/.test(m[1]);
+      const items = [];
+      while (i < L.length) {
+        const lm = L[i].match(/^\s*([-*]|\d+\.)\s+(.*)/);
+        if (lm && /\d/.test(lm[1]) === ordered) { items.push(lm[2]); i++; }
+        else if (L[i].trim() && /^\s+/.test(L[i]) && items.length) { items[items.length - 1] += " " + L[i].trim(); i++; }
+        else break;
+      }
+      const tag = ordered ? "ol" : "ul";
+      out.push(`<${tag}>${items.map(t => `<li>${mdInline(t, base)}</li>`).join("")}</${tag}>`);
+      continue;
+    }
+    const para = [];
+    while (i < L.length && L[i].trim() && !(para.length && isBlock(L[i]))) para.push(L[i++].trim());
+    out.push(`<p>${mdInline(para.join(" "), base)}</p>`);
+  }
+  return out.join("\n");
+}
+function showHelp(id, anchor) {
+  const d = helpDocs.find(x => x.id === id) || helpDocs[0];
+  helpCur = d.id;
+  $$("#helpNav button").forEach(b => b.classList.toggle("active", b.dataset.help === d.id));
+  $("#helpBody").innerHTML = mdRender(d.md, d.path) +
+    `<p class="hint">Quelle: <code>${esc(d.path)}</code> im Repo auf dem Pi</p>`;
+  const target = anchor && document.getElementById("h-" + slug(anchor));
+  if (target) target.scrollIntoView({ behavior: "smooth" }); else window.scrollTo(0, 0);
+  try { localStorage.setItem("help", d.id); } catch (e) {}
+}
+async function loadHelp() {
+  if (helpDocs) return;
+  const r = await api("/api/help");
+  if (!r.docs) { $("#helpBody").innerHTML = `<div class="notice">Hilfe nicht verfügbar: ${esc(r.error || "Fehler")}</div>`; return; }
+  helpDocs = r.docs;
+  $("#helpNav").innerHTML = helpDocs.map(d => `<button class="b" data-help="${d.id}">${esc(d.title)}</button>`).join("");
+  $$("#helpNav button").forEach(b => b.onclick = () => showHelp(b.dataset.help));
+  let start = null;
+  try { start = hash.get("help") || localStorage.getItem("help"); } catch (e) {}
+  showHelp(start);
+}
+$("#helpBody").addEventListener("click", e => {
+  const a = e.target.closest("a[data-doc], a[data-anchor]");
+  if (!a) return;
+  e.preventDefault();
+  if (a.dataset.doc) showHelp(a.dataset.doc, a.dataset.anchor);
+  else document.getElementById("h-" + slug(a.dataset.anchor))?.scrollIntoView({ behavior: "smooth" });
+});
 
 // ---------------------------------------------------------------- Gateway
 function renderGateway() {
