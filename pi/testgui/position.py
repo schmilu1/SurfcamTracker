@@ -1,8 +1,10 @@
 """GNSS des Pi (Gateway-HAT) lesen, aufzeichnen und den Tracker relativ zur Kamera berechnen.
 
 Das HAT-Modul versteht dieselben CASIC-Befehle wie der L76K im Tracker. Es wird bei jedem Start
-genau wie der Tracker eingestellt (GPS + BeiDou + GLONASS, RMC + GGA, 10 Hz, 115200 Baud), nicht
-dauerhaft im Modul gespeichert.
+auf dieselben Satellitensysteme wie der Tracker eingestellt (GPS + BeiDou + GLONASS, nur RMC + GGA),
+nicht dauerhaft im Modul gespeichert. Standard 1 Hz bei 9600 Baud: Mit 10 Hz (115200 Baud) hing
+das Modul am 06.11.2026 nach wenigen Sekunden und brauchte einen Stromunterbruch. Höhere Raten
+nur mit --pi-gnss-rate.
 
 Differenz-GPS im Positionsbereich (ohne Rohdaten):
   roh        = Tracker(t) - Kamerastandort            (Kamerastandort = Mittel des Trackers neben dem Pi)
@@ -156,7 +158,7 @@ class PiGnss(threading.Thread):
 
     def _configure(self):
         ser = None
-        for baud in (115200, 9600):
+        for baud in ((115200, 9600) if self.rate_hz > 1 else (9600, 115200)):
             ser = serial.Serial(self.port, baud, timeout=0.3)
             ser.reset_input_buffer()
             if self._sentences(ser, 2.0):
@@ -168,7 +170,7 @@ class PiGnss(threading.Thread):
         for c in self.CONFIG:
             ser.write(nmea_cmd(c))
             time.sleep(0.1)
-        if ser.baudrate != 115200:
+        if self.rate_hz > 1 and ser.baudrate != 115200:
             ser.write(nmea_cmd("PCAS01,5"))   # 115200 Baud (nicht gespeichert)
             time.sleep(0.2)
             ser.close()
@@ -179,7 +181,10 @@ class PiGnss(threading.Thread):
                 ser = serial.Serial(self.port, 9600, timeout=0.3)
                 self._set(msg="115200 Baud nicht übernommen, bleibe bei 9600 (max. 1 Hz)")
                 self.rate_hz = 1
-        ser.write(nmea_cmd("PCAS02,%d" % round(1000 / self.rate_hz)))
+        if self.rate_hz > 1:
+            ser.write(nmea_cmd("PCAS02,%d" % round(1000 / self.rate_hz)))
+        elif ser.baudrate != 9600:
+            ser.write(nmea_cmd("PCAS02,1000"))
         return ser
 
     def run(self):
@@ -308,10 +313,29 @@ class Relative:
             key = round(fix["t"] * 10) * 100
             self.pi_fixes[key] = (fix["lat"], fix["lon"])
             self.pi_order.append(key)
-            while len(self.pi_order) > 3000:  # 5 min bei 10 Hz
+            while len(self.pi_order) > 3000:  # 5 min bei 10 Hz, 50 min bei 1 Hz
                 self.pi_fixes.pop(self.pi_order.popleft(), None)
             if b["n"] % 600 == 1:
                 self._save()
+
+    def _pi_at(self, key):
+        """Pi-Position zur Zeit key (ms): genau, zwischen zwei Positionen interpoliert (Abstand ≤ 1,1 s)
+        oder die letzte davor, wenn sie höchstens 1,5 s alt ist (die nächste ist evtl. noch nicht da)."""
+        p = self.pi_fixes.get(key)
+        if p:
+            return p
+        after = None
+        for k in reversed(self.pi_order):
+            if k <= key:
+                if after is not None and after - k <= 1100:
+                    a, b = self.pi_fixes[k], self.pi_fixes[after]
+                    f = (key - k) / (after - k)
+                    return (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
+                return self.pi_fixes[k] if key - k <= 1500 else None
+            after = k
+            if after - key > 5000:
+                break
+        return None
 
     def reset_base(self):
         with self.lock:
@@ -330,7 +354,7 @@ class Relative:
             t += timedelta(days=1)
         key = round(t.timestamp() * 10) * 100
         with self.lock:
-            pi = self.pi_fixes.get(key)
+            pi = self._pi_at(key)
             d_pi = enu(p["lat"], p["lon"], pi[0], pi[1]) if pi else None  # Tracker - Pi zur selben Zeit
             c = self.calib
             if c:

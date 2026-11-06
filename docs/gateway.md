@@ -33,7 +33,8 @@ Das HAT hat ein eigenes GNSS-Modul. Es liefert den Kamerastandort und dient als 
 | | |
 |---|---|
 | Schnittstelle | **`/dev/ttyAMA0`**, nach dem Einschalten 9600 Baud, NMEA (`$GN…`, GPS + GLONASS). Nicht `/dev/serial0`, das zeigt auf dem Pi 5 auf die Debug-Schnittstelle `ttyAMA10` |
-| Einstellung durch das Test-GUI | bei jedem Start wie der Tracker: GPS + BeiDou + GLONASS (`PCAS04,7`), nur RMC + GGA (`PCAS03`), 115200 Baud (`PCAS01,5`), 10 Hz (`PCAS02,100`). Nicht im Modul gespeichert, nach Stromausfall wieder 9600 Baud / 1 Hz, bis das GUI neu einstellt |
+| Einstellung durch das Test-GUI | bei jedem Start dieselben Satellitensysteme wie der Tracker: GPS + BeiDou + GLONASS (`PCAS04,7`), nur RMC + GGA (`PCAS03`). 1 Hz bei 9600 Baud. Nicht im Modul gespeichert |
+| **10 Hz: Modul hängt** | Test 06.11.2026: nach `PCAS01,5` (115200 Baud) und `PCAS02,100` (10 Hz) kamen noch einzelne Positionen, dann blieb die Sendeleitung auf Low. Kein Befehl half mehr, nur ein Stromunterbruch (Pi ausschalten und Netzteil ziehen). Der L76K im Tracker läuft mit 10 Hz. Für die Differenzkorrektur reicht 1 Hz, weil sich der Fehler über Minuten ändert |
 | Rechte | Benutzer `Milder` ist in `dialout` |
 | Test 06.11.2026 | Daten kommen, `ANTENNA OK`, aber 0 Satelliten (Antenne im Haus) |
 

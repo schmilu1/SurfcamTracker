@@ -577,7 +577,8 @@ def main():
     ap.add_argument("--data", default=os.path.expanduser("~/surfcam-data"),
                     help="Ordner für Aufzeichnungen (Standard ~/surfcam-data)")
     ap.add_argument("--pi-gnss", default="/dev/ttyAMA0", help="GNSS des HAT (Standard /dev/ttyAMA0), 'aus' = nicht lesen")
-    ap.add_argument("--pi-gnss-rate", type=int, default=10, choices=(1, 2, 5, 10), help="Rate in Hz (Standard 10)")
+    ap.add_argument("--pi-gnss-rate", type=int, default=1, choices=(1, 2, 5, 10),
+                    help="Rate in Hz (Standard 1; mit 10 Hz hing das HAT-Modul im Test)")
     args = ap.parse_args()
 
     global rx_log, relative, pi_gnss, pi_log

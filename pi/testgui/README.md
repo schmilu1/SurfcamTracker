@@ -41,7 +41,7 @@ Gateway Bridge ─MQTT─► server.py ◄─USB (AT-Befehle, AT+JSON)─ Tracke
 
 Nur Python 3 und pyserial (auf dem Pi vorinstalliert).
 
-Aufzeichnungen (Pi-GPS, empfangene Pakete) und der Kamerastandort liegen in `~/surfcam-data/` (Option `--data`). Das GPS des Pi liest der Server von `/dev/ttyAMA0` (`--pi-gnss`, `aus` zum Abschalten) mit 10 Hz (`--pi-gnss-rate`).
+Aufzeichnungen (Pi-GPS, empfangene Pakete) und der Kamerastandort liegen in `~/surfcam-data/` (Option `--data`). Das GPS des Pi liest der Server von `/dev/ttyAMA0` (`--pi-gnss`, `aus` zum Abschalten) mit 1 Hz (`--pi-gnss-rate`; mit 10 Hz hing das HAT-Modul, siehe [docs/gateway.md](../../docs/gateway.md)).
 
 ## Installation auf dem Pi
 

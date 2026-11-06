@@ -18,6 +18,7 @@ Liegt der Tracker die ganze Zeit neben dem Pi (Nullbasis-Test), ist jeder Abstan
 """
 
 import argparse
+import bisect
 import csv
 import math
 import sys
@@ -48,6 +49,18 @@ def read_pi(paths):
                     continue
                 out[key(day_ms(r["date"]) + int(r["time_ms"]))] = (float(r["lat"]), float(r["lon"]), int(r["sats"]))
     return out
+
+
+def pi_at(pi, keys, t):
+    """Pi-Position zur Zeit t: genau oder zwischen zwei Positionen (Abstand ≤ 1,1 s) interpoliert."""
+    if t in pi:
+        return pi[t]
+    i = bisect.bisect_left(keys, t)
+    if 0 < i < len(keys) and keys[i] - keys[i - 1] <= 1100:
+        a, b = pi[keys[i - 1]], pi[keys[i]]
+        f = (t - keys[i - 1]) / (keys[i] - keys[i - 1])
+        return (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2])
+    return None
 
 
 def read_rover(path):
@@ -105,8 +118,11 @@ def main():
 
     pi = read_pi(args.pi)
     rover = read_rover(args.rover)
-    pairs = [(t, la, lo, s, pi[t]) for t, la, lo, s in rover if t in pi]
-    print("Tracker-Positionen mit Fix: %d, davon mit Pi-Position zur selben Zeit: %d" % (len(rover), len(pairs)))
+    keys = sorted(pi)
+    pairs = [(t, la, lo, s, q) for t, la, lo, s in rover for q in [pi_at(pi, keys, t)] if q]
+    exact = sum(1 for p in pairs if p[0] in pi)
+    print("Tracker-Positionen mit Fix: %d, davon mit Pi-Position: %d (%d zeitgleich, %d interpoliert)" % (
+        len(rover), len(pairs), exact, len(pairs) - exact))
     if len(pairs) < 10:
         sys.exit("zu wenige gemeinsame Zeitpunkte: überlappen die Aufzeichnungen zeitlich?")
     t0 = pairs[0][0]

@@ -11,7 +11,7 @@ korrigiert = Tracker(t) − Pi(t) − Versatz
 
 - **Kamerastandort:** Mittel der Tracker-Positionen, während der Tracker neben dem Pi liegt.
 - **Versatz:** Mittel von Tracker − Pi im selben Zeitraum. Er enthält den Abstand der Antennen und die feste Abweichung zwischen den beiden Empfängern.
-- **Gleiche Zeit:** Beide liefern 10 Hz auf ganzen 100 ms, verglichen wird über die UTC-Zeit des Fixes.
+- **Gleiche Zeit:** verglichen wird über die UTC-Zeit des Fixes. Das Pi-GPS läuft mit 1 Hz (mit 10 Hz hing das HAT-Modul), dazwischen wird interpoliert. Der gemeinsame Fehler ändert sich über Minuten, das reicht.
 
 Für die Kamera zählt nur die Lage des Trackers **relativ zur Kamera**. Ein gemeinsamer Fehler beider Empfänger stört dabei nicht, ein unterschiedlicher schon.
 
@@ -47,7 +47,7 @@ Das Test-GUI schreibt nach `~/surfcam-data/` (eine Datei pro Start und UTC-Tag, 
 
 | Ordner | Inhalt |
 |---|---|
-| `pi_gnss/` | jede Position des Pi-GPS: `date,utc,time_ms,lat,lon,alt,fix,sats,hdop` (10 Hz, ≈ 25 MB/Tag) |
+| `pi_gnss/` | jede Position des Pi-GPS: `date,utc,time_ms,lat,lon,alt,fix,sats,hdop` (1 Hz, ≈ 6 MB/Tag) |
 | `rx/` | jedes empfangene Tracker-Paket: `rx_utc` + Felder des Pakets |
 | `position.json` | Mittelwert des Pi-GPS und Kamerastandort (bleiben über Neustarts erhalten) |
 
