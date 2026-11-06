@@ -43,6 +43,13 @@ size_t encodePosition(const Position& p, uint8_t* out, size_t outLen) {
   out[16] = (uint8_t)(course & 0xFF);
   out[17] = (uint8_t)(((uint8_t)p.fix & 0x03) << 6 | sats);
   out[18] = (uint8_t)hdop;
+  if (p.motion) {
+    out[19] = (uint8_t)clampU32((p.motionRmsMg + 25) / 50, 254);
+    out[20] = (uint8_t)clampU32((p.motionPeakMg + 50) / 100, 254);
+    out[21] = (uint8_t)clampU32(p.tiltDeg, 180);
+  } else {
+    out[19] = out[20] = out[21] = kMotionUnknown;
+  }
   return kPacketSize;
 }
 
@@ -64,6 +71,10 @@ bool decodePosition(const uint8_t* in, size_t len, Position& p) {
   p.fix = (FixType)(in[17] >> 6);
   p.sats = in[17] & 0x3F;
   p.hdopX10 = in[18];
+  p.motion = in[19] != kMotionUnknown && in[20] != kMotionUnknown && in[21] != kMotionUnknown;
+  p.motionRmsMg = p.motion ? (uint16_t)(in[19] * 50) : 0;
+  p.motionPeakMg = p.motion ? (uint16_t)(in[20] * 100) : 0;
+  p.tiltDeg = p.motion ? in[21] : 0;
   return true;
 }
 

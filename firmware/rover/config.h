@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define ROVER_FW_VERSION "0.3.0"
+#define ROVER_FW_VERSION "0.4.0"
 
 namespace pins {
 constexpr int GPS_RX = 9;      // ESP RX  <- L76K TXD
@@ -29,6 +29,8 @@ constexpr int BUTTON = 0;       // Taste ältere Geräte: active-low, auch Boot-
 constexpr int BUTTON_HIGH = 25; // Taste neuere Geräte: active-high (siehe Hinweis bei GPS_POWER)
 constexpr int BATTERY = 35;    // Teiler 100k / 470k
 constexpr int BUZZER = 4;
+constexpr int I2C_SDA = 21;     // LIS3DH (4.7k Pull-ups)
+constexpr int I2C_SCL = 22;
 }  // namespace pins
 
 namespace defaults {
@@ -41,6 +43,7 @@ constexpr uint8_t SF = 7;
 constexpr uint32_t BW_HZ = 250000UL;
 constexpr bool LEDS = true;
 constexpr uint8_t LOG_HZ = 5;              // Lograte: 0 (aus), 1, 2, 4, 5, 10
+constexpr bool LOG_MOTION = true;          // Bewegungswerte im Log (Datensatz 24 statt 20 Bytes)
 }  // namespace defaults
 
 // Funkprofile für AT+BAND (setzen Frequenz und Sendeleistung; der automatische Sendeabstand

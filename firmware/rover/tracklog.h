@@ -3,8 +3,10 @@
 // Eine Session beginnt mit dem ersten gültigen Fix und heisst nach dessen UTC-Zeit "YYMMDD_hhmmss".
 // Sie besteht aus Segmenten à höchstens 64 kB: "/YYMMDD_hhmmss_NNN.trk" (NNN = 000, 001, ...).
 // Jedes Segment ist eine eigenständige Datei:
-//   Kopf  12 Bytes: "SCTL", Version (1), Geräte-ID, Datensatzgrösse (uint16), Datum DDMMYY (uint32)
-//   Datensätze à 20 Bytes, Little Endian (siehe LogRecord)
+//   Kopf  12 Bytes: "SCTL", Version, Geräte-ID, Datensatzgrösse (uint16), Datum DDMMYY (uint32)
+//   Version 1: Datensätze à 20 Bytes (LogRecord)
+//   Version 2: Datensätze à 24 Bytes (LogRecord + LogMotion), mit Bewegungswerten
+//   Little Endian
 // Ringpuffer: Wird der Platz knapp, wird das älteste Segment gelöscht, auch eines der laufenden
 // Session. Die Dateinamen sortieren alphabetisch = chronologisch.
 #pragma once
@@ -34,8 +36,17 @@ struct __attribute__((packed)) LogRecord {
   uint8_t battery;      // (mV - 2000) / 10, 0 = unbekannt
 };
 
+// Bewegungswerte seit dem letzten Datensatz (gleiche Skalierung wie im Funkpaket)
+struct __attribute__((packed)) LogMotion {
+  uint8_t rms;   // RMS dynamische Beschleunigung, 0.05 g; 255 = unbekannt
+  uint8_t peak;  // Spitzenwert Beschleunigungsbetrag, 0.1 g; 255 = unbekannt
+  uint8_t tilt;  // Neigung, Grad (0..180); 255 = unbekannt
+  uint8_t reserved;
+};
+
 static_assert(sizeof(LogHeader) == 12, "LogHeader muss 12 Bytes haben");
 static_assert(sizeof(LogRecord) == 20, "LogRecord muss 20 Bytes haben");
+static_assert(sizeof(LogMotion) == 4, "LogMotion muss 4 Bytes haben");
 
 class TrackLog {
  public:
@@ -46,8 +57,14 @@ class TrackLog {
   void setRate(uint8_t hz) { rateHz_ = hz; }
   uint8_t rate() const { return rateHz_; }
 
+  // Bewegungswerte mitloggen (gilt ab der nächsten Session; eine laufende wird beendet)
+  void setMotion(bool on);
+  bool motion() const { return motion_; }
+
   // Gültige Fixes anhängen; startet beim ersten Fix eine neue Session.
-  void append(const surfcam::GnssFix& f, uint16_t batteryMv, uint8_t deviceId);
+  // getMotion wird nur aufgerufen, wenn der Fix tatsächlich geloggt wird.
+  void append(const surfcam::GnssFix& f, uint16_t batteryMv, uint8_t deviceId,
+              LogMotion (*getMotion)() = nullptr);
   void tick();   // regelmässig aufrufen (zeitgesteuertes Schreiben)
   void close();  // Puffer schreiben und Datei schliessen
 
@@ -94,7 +111,10 @@ class TrackLog {
   static char names_[kMaxFiles][32];
   uint32_t lastTimeMs_ = 0;
   uint32_t dayOffsetMs_ = 0;
-  LogRecord buf_[kBufferRecords];
+  static constexpr size_t kMaxRecordSize = sizeof(LogRecord) + sizeof(LogMotion);
+  uint8_t buf_[kBufferRecords * kMaxRecordSize];
+  size_t recSize_ = sizeof(LogRecord);  // Datensatzgrösse der laufenden Session
+  bool motion_ = true;
   size_t count_ = 0;
   uint32_t lastFlushMs_ = 0;
   uint32_t records_ = 0;

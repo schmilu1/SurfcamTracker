@@ -18,6 +18,7 @@ void Settings::load() {
   bwHz = p.getULong("bw", bwHz);
   leds = p.getBool("leds", leds);
   logHz = p.getUChar("logHz", logHz);
+  logMotion = p.getBool("logMot", logMotion);
   p.end();
 }
 
@@ -33,6 +34,7 @@ void Settings::save() const {
   p.putULong("bw", bwHz);
   p.putBool("leds", leds);
   p.putUChar("logHz", logHz);
+  p.putBool("logMot", logMotion);
   p.end();
 }
 

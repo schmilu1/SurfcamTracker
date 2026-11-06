@@ -41,6 +41,8 @@ void printHelp() {
       "AT+GNSS=<cmd>    Befehl an L76K senden, z. B. AT+GNSS=PCAS06,0\r\n"
       "AT+BTN           Tastentest: 10 s lang Pegel von IO0 und IO25 anzeigen\r\n"
       "AT+LOGRATE=<Hz>  Lograte: 0 (aus), 1, 2, 4, 5, 10\r\n"
+      "AT+LOGMOTION=<0|1> Bewegungswerte mitloggen\r\n"
+      "AT+MOTION        Bewegungssensor 10 s lang live anzeigen\r\n"
       "AT+LOG           Sessions im Flash auflisten\r\n"
       "AT+LOGDUMP[=<s>] Session als CSV ausgeben (ohne Name: neueste)\r\n"
       "AT+LOGDEL=<s>    Session löschen (ALL = alle)\r\n"
@@ -238,6 +240,36 @@ void handle(char* cmd) {
         last25 = io25;
       }
       delay(10);
+    }
+    ok();
+  } else if (strcmp(cmd, "AT+LOGMOTION") == 0) {
+    if (numericSetting("LOGMOTION", val, query, settings.logMotion ? 1 : 0, 0, 1, v)) {
+      settings.logMotion = v == 1;
+      settings.save();
+      trackLog.setMotion(settings.logMotion);
+      Serial.println("Gilt ab der nächsten Session (eine laufende wurde beendet).");
+      ok();
+    }
+  } else if (strcmp(cmd, "AT+MOTION") == 0) {
+    if (!motion.ok()) {
+      err("kein Bewegungssensor");
+      return;
+    }
+    Serial.println("Bewegung 10 s, alle 0.5 s: Rohwert x/y/z (mg), dynamisch RMS, Spitze, Neigung");
+    const uint32_t t0 = millis();
+    uint32_t last = 0;
+    while (millis() - t0 < 10000) {
+      motion.poll();
+      if (millis() - last >= 500) {
+        last = millis();
+        int16_t x, y, z;
+        motion.lastSampleMg(x, y, z);
+        const MotionSummary m = motion.peekLive();
+        Serial.printf("%5lu ms  x %6d  y %6d  z %6d   RMS %5.2f g  Spitze %5.2f g  Neigung %3u°\r\n",
+                      (unsigned long)(millis() - t0), x, y, z, m.rmsMg / 1000.0f, m.peakMg / 1000.0f,
+                      m.tiltDeg);
+      }
+      delay(5);
     }
     ok();
   } else if (strcmp(cmd, "AT+LOGRATE") == 0) {

@@ -21,20 +21,24 @@ static Position sample() {
   p.fix = FIX_GNSS;
   p.hdopX10 = 8;
   p.batteryMv = 3912;
+  p.motion = true;
+  p.motionRmsMg = 1234;
+  p.motionPeakMg = 5678;
+  p.tiltDeg = 97;
   return p;
 }
 
 void test_size_and_header() {
   uint8_t buf[32];
   TEST_ASSERT_EQUAL(kPacketSize, encodePosition(sample(), buf, sizeof(buf)));
-  TEST_ASSERT_EQUAL(19, kPacketSize);
+  TEST_ASSERT_EQUAL(22, kPacketSize);
   TEST_ASSERT_EQUAL_HEX8(0xE0, buf[0]);
-  TEST_ASSERT_EQUAL_HEX8((1 << 5) | 7, buf[1]);
+  TEST_ASSERT_EQUAL_HEX8((2 << 5) | 7, buf[1]);
   TEST_ASSERT_EQUAL_UINT8(200, buf[2]);
 }
 
 void test_buffer_too_small() {
-  uint8_t buf[18];
+  uint8_t buf[21];
   TEST_ASSERT_EQUAL(0, encodePosition(sample(), buf, sizeof(buf)));
 }
 
@@ -54,6 +58,31 @@ void test_roundtrip() {
   TEST_ASSERT_EQUAL(FIX_GNSS, d.fix);
   TEST_ASSERT_EQUAL_UINT16(8, d.hdopX10);
   TEST_ASSERT_UINT16_WITHIN(20, 3912, d.batteryMv);
+  TEST_ASSERT_TRUE(d.motion);
+  TEST_ASSERT_UINT16_WITHIN(25, 1234, d.motionRmsMg);  // 0.05 g Auflösung
+  TEST_ASSERT_UINT16_WITHIN(50, 5678, d.motionPeakMg); // 0.1 g Auflösung
+  TEST_ASSERT_EQUAL_UINT8(97, d.tiltDeg);
+}
+
+void test_motion_unknown_and_clamped() {
+  Position p = sample();
+  p.motion = false;
+  uint8_t buf[kPacketSize];
+  encodePosition(p, buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_HEX8(0xFF, buf[19]);
+  TEST_ASSERT_EQUAL_HEX8(0xFF, buf[20]);
+  TEST_ASSERT_EQUAL_HEX8(0xFF, buf[21]);
+  Position d;
+  TEST_ASSERT_TRUE(decodePosition(buf, sizeof(buf), d));
+  TEST_ASSERT_FALSE(d.motion);
+  p.motion = true;
+  p.motionRmsMg = 60000;
+  p.motionPeakMg = 60000;
+  p.tiltDeg = 250;
+  encodePosition(p, buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_UINT8(254, buf[19]);  // 255 bleibt für "unbekannt" reserviert
+  TEST_ASSERT_EQUAL_UINT8(254, buf[20]);
+  TEST_ASSERT_EQUAL_UINT8(180, buf[21]);
 }
 
 void test_limits_are_clamped() {
@@ -97,7 +126,7 @@ void test_decode_rejects_invalid() {
   buf[0] = 0x40;  // LoRaWAN Unconfirmed Data Up
   TEST_ASSERT_FALSE(decodePosition(buf, kPacketSize, d));
   buf[0] = 0xE0;
-  buf[1] = (2 << 5) | 7;  // Version 2
+  buf[1] = (1 << 5) | 7;  // Version 1 (19 Bytes) wird nicht mehr dekodiert
   TEST_ASSERT_FALSE(decodePosition(buf, kPacketSize, d));
 }
 
@@ -115,6 +144,12 @@ void test_airtime() {
   // 16 bis 19 Byte brauchen gleich viele Symbole
   TEST_ASSERT_EQUAL_UINT32(loraAirtimeUs(19, 7, 250000), loraAirtimeUs(16, 7, 250000));
   TEST_ASSERT_TRUE(loraAirtimeUs(20, 7, 250000) > loraAirtimeUs(19, 7, 250000));
+  // Paket Version 2: 22 Byte = 55.25 Symbole, 23 Byte wären ein Block mehr
+  TEST_ASSERT_EQUAL_UINT32(28288, loraAirtimeUs(22, 7, 250000));
+  TEST_ASSERT_EQUAL_UINT32(loraAirtimeUs(20, 7, 250000), loraAirtimeUs(22, 7, 250000));
+  TEST_ASSERT_TRUE(loraAirtimeUs(23, 7, 250000) > loraAirtimeUs(22, 7, 250000));
+  // 10 % Duty Cycle: 283 ms, passt in 300 ms (3 Epochen à 100 ms)
+  TEST_ASSERT_EQUAL_UINT32(283, minTxSpacingMs(loraAirtimeUs(22, 7, 250000), 100));
   // SF12 / 125 kHz / 13 Byte (leerer LoRaWAN-Frame), mit Low Data Rate Optimize
   TEST_ASSERT_EQUAL_UINT32(1155072, loraAirtimeUs(13, 12, 125000));
   TEST_ASSERT_EQUAL_UINT32(0, loraAirtimeUs(19, 13, 250000));
@@ -143,6 +178,7 @@ int main(int, char**) {
   RUN_TEST(test_size_and_header);
   RUN_TEST(test_buffer_too_small);
   RUN_TEST(test_roundtrip);
+  RUN_TEST(test_motion_unknown_and_clamped);
   RUN_TEST(test_limits_are_clamped);
   RUN_TEST(test_low_battery_and_unknown_time);
   RUN_TEST(test_decode_rejects_invalid);

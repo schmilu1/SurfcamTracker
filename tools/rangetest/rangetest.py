@@ -27,9 +27,8 @@ from datetime import datetime
 TOPIC = "eu868/gateway/+/event/up"
 CONTAINER = "surfcam-mosquitto-1"
 BANDS = {869525000: "A", 869850000: "B"}
-PACKET_SIZE = 19
+PACKET_SIZES = {1: 19, 2: 22}  # Paketversion -> Länge
 MHDR = 0xE0
-VERSION = 1
 
 
 # ------------------------------------------------------------------ Protobuf (minimal)
@@ -96,7 +95,7 @@ def parse_uplink(raw):
 # ------------------------------------------------------------------ Rover-Paket
 
 def decode_rover(p):
-    if len(p) != PACKET_SIZE or p[0] != MHDR or p[1] >> 5 != VERSION:
+    if len(p) < 2 or p[0] != MHDR or PACKET_SIZES.get(p[1] >> 5) != len(p):
         return None
     w = int.from_bytes(p[3:7], "big")
     batt = w >> 27
@@ -115,6 +114,10 @@ def decode_rover(p):
         "fix": p[17] >> 6,
         "sats": p[17] & 0x3F,
         "hdop": p[18] / 10,
+        # Version 2: Bewegung (255 = kein Sensor)
+        "motion_rms_g": p[19] * 0.05 if len(p) >= 22 and p[19] != 255 else None,
+        "motion_peak_g": p[20] * 0.1 if len(p) >= 22 and p[20] != 255 else None,
+        "tilt_deg": p[21] if len(p) >= 22 and p[21] != 255 else None,
     }
 
 
@@ -176,7 +179,7 @@ def main():
     w = csv.writer(out)
     w.writerow(["rx_time", "band", "freq_hz", "id", "seq", "lost_before", "rssi_dbm", "snr_db", "fix",
                 "sats", "hdop", "lat", "lon", "dist_m", "speed_mps", "course_deg", "gnss_utc_ms",
-                "battery_mv"])
+                "battery_mv", "motion_rms_g", "motion_peak_g", "tilt_deg"])
 
     if args.stdin:
         src = sys.stdin
@@ -247,11 +250,18 @@ def main():
                         pkt["sats"], pkt["hdop"], "%.7f" % pkt["lat"], "%.7f" % pkt["lon"],
                         "%.1f" % dist if dist is not None else "", pkt["speed_mps"],
                         "%.1f" % pkt["course_deg"], pkt["time_ms"] if pkt["time_ms"] is not None else "",
-                        pkt["battery_mv"]])
+                        pkt["battery_mv"],
+                        "%.2f" % pkt["motion_rms_g"] if pkt["motion_rms_g"] is not None else "",
+                        "%.1f" % pkt["motion_peak_g"] if pkt["motion_peak_g"] is not None else "",
+                        pkt["tilt_deg"] if pkt["tilt_deg"] is not None else ""])
             if args.verbose:
-                print("  seq %3d  verloren %2d  RSSI %4s  SNR %5s  Fix %d  Sat %2d  %s" % (
+                mot = ""
+                if pkt["motion_rms_g"] is not None:
+                    mot = "  Bewegung %.2f g, Spitze %.1f g, Neigung %d°" % (
+                        pkt["motion_rms_g"], pkt["motion_peak_g"], pkt["tilt_deg"])
+                print("  seq %3d  verloren %2d  RSSI %4s  SNR %5s  Fix %d  Sat %2d  %s%s" % (
                     pkt["seq"], lost, rssi, "%.1f" % snr if snr is not None else "-", pkt["fix"],
-                    pkt["sats"], "%.0f m" % dist if dist is not None else ""), flush=True)
+                    pkt["sats"], "%.0f m" % dist if dist is not None else "", mot), flush=True)
 
             if now - win_start >= args.window:
                 print(datetime.now().strftime("%H:%M:%S ") + fmt_window(

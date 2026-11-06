@@ -60,7 +60,7 @@ Die Ausgabe von `lora_pkt_fwd` im Journal ist gepuffert und erscheint verzögert
 docker exec surfcam-mosquitto-1 mosquitto_sub -t "eu868/gateway/+/event/up" -F "%I %t %x"
 ```
 
-Die Gateway Bridge veröffentlicht Protobuf (`UplinkFrame`). Rover-Pakete beginnen mit `0a 13 e0 2x`: Feld 1 (`phy_payload`), 19 Bytes, MHDR `0xE0`, Version 1 und Geräte-ID im unteren Teil des zweiten Bytes.
+Die Gateway Bridge veröffentlicht Protobuf (`UplinkFrame`). Rover-Pakete beginnen mit `0a 16 e0 4x`: Feld 1 (`phy_payload`), 22 Bytes, MHDR `0xE0`, Version 2 und Geräte-ID im unteren Teil des zweiten Bytes (bis Rover 0.3.0: `0a 13 e0 2x`, 19 Bytes, Version 1).
 
 Feldnummern, die der Pi-Dienst braucht:
 

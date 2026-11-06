@@ -11,7 +11,7 @@ Diese Firmware ersetzt die Dragino-Firmware vollständig: kein LoRaWAN, kein BLE
 | Frequenz | Band A: 869,525 MHz (Standard) / Band B: 869,85 MHz | siehe [Funkbänder](#funkbänder) |
 | Modulation | LoRa SF7, 250 kHz, CR 4/5, Präambel 8, CRC an, expliziter Header | 250 kHz ist die grösste Bandbreite, die ins Band passt |
 | Sync-Word | 0x34 (öffentlich, wie LoRaWAN) | damit das SX1303-Gateway die Pakete empfängt |
-| Paket | 19 Bytes, Sendezeit 25,7 ms | 16–19 Bytes brauchen gleich viele Symbole |
+| Paket | 22 Bytes, Sendezeit 28,3 ms | 20–22 Bytes brauchen gleich viele Symbole; 23 Bytes wären 2,5 ms länger und würden Band A auf 400 ms Abstand bringen |
 | Sendeabstand | automatisch: so kurz wie der Duty Cycle erlaubt, auf GNSS-Epochen aufgerundet | Band A **300 ms (3,3/s)**, Band B **100 ms (10/s)** |
 | GNSS | 10 Hz, GPS + BeiDou + GLONASS (`$PCAS04,7`) | bei 10 Hz liegt zu jedem Sendezeitpunkt eine höchstens 100 ms alte Position vor, die Pakete gehen gleichmässig alle 300 ms raus |
 | Sendeleistung | Band A 17 dBm, Band B 7 dBm (einstellbar 2–20) | Band B: höchstens 5 mW ERP |
@@ -38,12 +38,12 @@ Der automatische Sendeabstand (`AT+TXINT=0`) ergibt sich aus Duty Cycle, Paketl�
 
 ## Paketformat (für den Empfänger)
 
-19 Bytes, Big Endian. Das erste Byte ist der LoRaWAN-MHDR für „Proprietary“ (`0xE0`). ChirpStack verwirft solche Frames, der Pi-Dienst liest sie roh aus dem MQTT-Uplink des Gateway Bridge.
+22 Bytes (Version 2), Big Endian. Das erste Byte ist der LoRaWAN-MHDR für „Proprietary“ (`0xE0`). ChirpStack verwirft solche Frames, der Pi-Dienst liest sie roh aus dem MQTT-Uplink des Gateway Bridge.
 
 | Byte | Inhalt |
 |---|---|
 | 0 | `0xE0` |
-| 1 | Bits 7–5: Version (`1`), Bits 4–0: Geräte-ID (0–31) |
+| 1 | Bits 7–5: Version (`2`; Version 1 = 19 Bytes ohne Bewegung, bis Firmware 0.3.0), Bits 4–0: Geräte-ID (0–31) |
 | 2 | Sequenznummer (0–255, läuft über) – Paketverluste erkennen |
 | 3–6 | Bits 31–27: Akku-Stufe *n* (0 = unbekannt/≤ 3000 mV, sonst 3000 + 40·*n* mV); Bits 26–0: Zeit des Fixes in ms seit UTC-Mitternacht (`0x7FFFFFF` = unbekannt) |
 | 7–10 | Breite, `int32`, Grad × 10⁷ |
@@ -52,6 +52,23 @@ Der automatische Sendeabstand (`AT+TXINT=0`) ergibt sich aus Duty Cycle, Paketl�
 | 16 | Kurs, 360/256 Grad |
 | 17 | Bits 7–6: Fix-Art (0 kein Fix, 1 GNSS, 2 DGNSS, 3 geschätzt), Bits 5–0: Satelliten (max. 63) |
 | 18 | HDOP × 10 (max. 25,5) |
+| 19 | Bewegung: RMS der dynamischen Beschleunigung seit dem letzten Paket, 0,05 g (max. 12,7 g) |
+| 20 | Bewegung: Spitzenwert des Beschleunigungsbetrags seit dem letzten Paket, 0,1 g (max. 25,4 g) |
+| 21 | Neigung: Winkel zwischen Z-Achse des Sensors und Senkrechter, Grad (0 = flach, 180 = kopfüber) |
+
+Bytes 19–21 sind `255`, wenn kein Bewegungssensor gefunden wurde.
+
+### Bewegungssensor
+
+LIS3DH an I2C (SDA IO21, SCL IO22, Adresse 0x19), 100 Hz, ±8 g. Der Sensor puffert 32 Messwerte, die Firmware holt sie alle 50 ms ab. Die Schwerkraft wird per Tiefpass (≈ 0,5 s) geschätzt; was übrig bleibt, ist die dynamische Beschleunigung.
+
+| Wert | typisch |
+|---|---|
+| Bewegung (RMS) | ruhig ≈ 0,0 g · Paddeln, Gehen ≈ 0,3–1 g · Welle reiten (Vibration), Sturz deutlich mehr |
+| Spitze | ruhig ≈ 1 g (Schwerkraft) · Schläge, Stürze mehrere g |
+| Neigung | hängt von der Befestigung ab; Wechsel zeigen Drehen/Umfallen des Bretts |
+
+Die Werte im Paket gelten für die Zeit seit dem vorigen Paket. `AT+MOTION` zeigt sie 10 s lang live. Die Schwellen für „Surfen“, „Paddeln“ usw. legt der Pi-Dienst fest, nicht der Rover. Stromverbrauch ≈ 0,01 mA (Sensor) + Auslesen, gegenüber ≈ 60 mA gesamt vernachlässigbar.
 
 Referenz-Implementierung: [packet.h](packet.h) / [packet.cpp](packet.cpp) (`encodePosition` / `decodePosition`). Das Datum ist nicht enthalten, der Empfänger ergänzt es aus seiner eigenen UTC-Uhr.
 
@@ -94,6 +111,8 @@ Unter 3,3 V Akkuspannung (10 s lang) schaltet sich der Rover selbst ab.
 | `AT+BTN` | Tastentest: 10 s lang Pegel von IO0 und IO25 anzeigen | |
 | `AT+GNSS=<befehl>` | Befehl ans L76K, ohne `$` und Prüfsumme, z. B. `AT+GNSS=PCAS06,0` | |
 | `AT+LOGRATE=<Hz>` | Lograte: 0 (aus), 1, 2, 4, 5, 10 | 5 |
+| `AT+LOGMOTION=<0\|1>` | Bewegungswerte mitloggen (gilt ab der nächsten Session) | 1 |
+| `AT+MOTION` | Bewegungssensor 10 s lang live anzeigen | |
 | `AT+LOG` | Sessions im Flash auflisten | |
 | `AT+LOGDUMP` / `AT+LOGDUMP=<session>` | neueste bzw. angegebene Session als CSV ausgeben (Name aus `AT+LOG`, z. B. `261106_120000`) | |
 | `AT+LOGDEL=<session>` / `AT+LOGDEL=ALL` | Session(s) löschen | |
@@ -111,10 +130,13 @@ Gültige Positionen landen im Flash (LittleFS, ca. 2,4 MB, eigene Partitionstabe
 
 | Lograte | Datenrate | Kapazität |
 |---|---|---|
-| 5 Hz | 100 B/s | ≈ 6,7 h |
-| 10 Hz | 200 B/s | ≈ 3,3 h |
+| 5 Hz, ohne Bewegung | 100 B/s | ≈ 6,7 h |
+| 5 Hz, mit Bewegung | 120 B/s | ≈ 5,6 h |
+| 10 Hz, mit Bewegung | 240 B/s | ≈ 2,8 h |
 
-**Ringpuffer:** Wird der Platz knapp, wird das älteste Segment gelöscht, auch aus der laufenden Session. Das Log hält also immer die letzten ≈ 6,7 h (bei 5 Hz), die Aufzeichnung stoppt nie.
+**Bewegung:** `AT+LOGMOTION=1` (Standard) speichert pro Datensatz zusätzlich Bewegung, Spitze und Neigung seit dem vorigen Datensatz (4 Bytes). Die Einstellung gilt ab der nächsten Session; eine laufende wird beim Umschalten beendet.
+
+**Ringpuffer:** Wird der Platz knapp, wird das älteste Segment gelöscht, auch aus der laufenden Session. Das Log hält also immer die letzten ≈ 5,6 h (5 Hz mit Bewegung), die Aufzeichnung stoppt nie.
 
 **Auslesen:** `AT+LOG` zeigt die Sessions (mit Anzahl Segmente), `AT+LOGDUMP` gibt die neueste als CSV im Monitor aus, alle Segmente hintereinander. `AT+LOGDUMP=<session>` gibt eine bestimmte aus, `AT+LOGDUMP=<datei>.trk` ein einzelnes Segment. Der Parameter ist der Name im Flash, nicht eine Zieldatei.
 
@@ -127,11 +149,11 @@ pio device monitor -f send_on_enter -f log2file
 CSV-Spalten:
 
 ```
-date,utc,time_ms,lat,lon,speed_mps,course_deg,sats,fix,hdop,battery_mv
-2026-11-05,21:21:19.900,76879900,47.5529780,8.8972410,0.00,256.70,6,1,4.3,3950
+date,utc,time_ms,lat,lon,speed_mps,course_deg,sats,fix,hdop,battery_mv,motion_rms_g,motion_peak_g,tilt_deg
+2026-11-05,21:21:19.900,76879900,47.5529780,8.8972410,0.00,256.70,6,1,4.3,3950,0.05,1.1,4
 ```
 
-Binärformat ([tracklog.h](tracklog.h), Little Endian), pro Segment: 12-Byte-Kopf (`"SCTL"`, Version, Geräte-ID, Datensatzgrösse, Datum DDMMYY), danach Datensätze à 20 Bytes. `time_ms` läuft über Mitternacht hinaus weiter.
+Binärformat ([tracklog.h](tracklog.h), Little Endian), pro Segment: 12-Byte-Kopf (`"SCTL"`, Version, Geräte-ID, Datensatzgrösse, Datum DDMMYY), danach Datensätze à 20 Bytes (Version 1) bzw. 24 Bytes mit Bewegung (Version 2: + RMS 0,05 g, Spitze 0,1 g, Neigung °, reserviert). Ohne Bewegung sind die drei letzten CSV-Spalten leer. `time_ms` läuft über Mitternacht hinaus weiter.
 
 ## Build
 
@@ -156,11 +178,12 @@ pio test -e native        # 27 Unit-Tests, ohne Hardware
 
 ```
 Start ─► GNSS an, Baudrate erkennen (115200/9600), auf 115200 Baud, GPS+BDS+GLONASS, RMC+GGA, AT+RATE Hz
-      ─► LoRa initialisieren, LittleFS mounten
+      ─► LoRa initialisieren, LittleFS mounten, LIS3DH (100 Hz, FIFO)
 Loop ─► NMEA lesen ─► Epoche (RMC+GGA mit gleicher Zeit)
                     ├─► gültig? ─► ins Log
                     └─► neueste Epoche merken
-     ─► Sendeabstand und Duty Cycle erlaubt? ─► 19-Byte-Paket senden, LoRa schlafen legen
+     ─► LIS3DH-FIFO abholen (alle 50 ms) ─► Bewegung für Paket und Log aufsummieren
+     ─► Sendeabstand und Duty Cycle erlaubt? ─► 22-Byte-Paket senden, LoRa schlafen legen
      ─► Taste, Akku, LEDs
 ```
 

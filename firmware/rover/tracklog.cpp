@@ -132,9 +132,9 @@ bool TrackLog::openSegment() {
   }
   LogHeader h;
   memcpy(h.magic, "SCTL", 4);
-  h.version = 1;
+  h.version = recSize_ == sizeof(LogRecord) ? 1 : 2;
   h.deviceId = deviceId_;
-  h.recordSize = sizeof(LogRecord);
+  h.recordSize = (uint16_t)recSize_;
   h.date = date_;
   file_.write((const uint8_t*)&h, sizeof(h));
   file_.flush();
@@ -150,6 +150,7 @@ bool TrackLog::openSession(const GnssFix& f, uint8_t deviceId) {
            (unsigned long)mm, (unsigned long)dd, (unsigned long)(s / 3600),
            (unsigned long)((s / 60) % 60), (unsigned long)(s % 60));
   segment_ = 0;
+  recSize_ = motion_ ? sizeof(LogRecord) + sizeof(LogMotion) : sizeof(LogRecord);
   date_ = f.date;
   deviceId_ = deviceId;
   if (!openSegment()) {
@@ -161,11 +162,17 @@ bool TrackLog::openSession(const GnssFix& f, uint8_t deviceId) {
   records_ = 0;
   haveBucket_ = false;
   lastFlushMs_ = millis();
-  Serial.printf("[log] neue Session %s, %u Hz\r\n", session_, rateHz_);
+  Serial.printf("[log] neue Session %s, %u Hz%s\r\n", session_, rateHz_, motion_ ? ", mit Bewegung" : "");
   return true;
 }
 
-void TrackLog::append(const GnssFix& f, uint16_t batteryMv, uint8_t deviceId) {
+void TrackLog::setMotion(bool on) {
+  if (on == motion_) return;
+  motion_ = on;
+  if (file_) close();  // nächster Fix startet eine neue Session mit passendem Format
+}
+
+void TrackLog::append(const GnssFix& f, uint16_t batteryMv, uint8_t deviceId, LogMotion (*getMotion)()) {
   if (!ok_ || full_ || rateHz_ == 0 || !f.valid || f.timeMs == kTimeUnknown) return;
   if (!file_ && !openSession(f, deviceId)) return;
 
@@ -180,7 +187,9 @@ void TrackLog::append(const GnssFix& f, uint16_t batteryMv, uint8_t deviceId) {
   haveBucket_ = true;
   lastBucket_ = bucket;
 
-  LogRecord& r = buf_[count_++];
+  uint8_t* slot = buf_ + count_ * recSize_;
+  count_++;
+  LogRecord r;
   r.timeMs = t;
   r.latE7 = f.latE7;
   r.lonE7 = f.lonE7;
@@ -190,13 +199,19 @@ void TrackLog::append(const GnssFix& f, uint16_t batteryMv, uint8_t deviceId) {
   r.fixQuality = f.fixQuality;
   r.hdopX10 = f.hdopX10 > 255 ? 255 : (uint8_t)f.hdopX10;
   r.battery = batteryMv > 2000 ? (uint8_t)min(255, (batteryMv - 2000) / 10) : 0;
+  memcpy(slot, &r, sizeof(r));
+  if (recSize_ > sizeof(LogRecord)) {
+    LogMotion m = {255, 255, 255, 0};
+    if (getMotion) m = getMotion();
+    memcpy(slot + sizeof(r), &m, sizeof(m));
+  }
   records_++;
   if (count_ >= kBufferRecords) flush();
 }
 
 void TrackLog::flush() {
   if (!file_ || count_ == 0) return;
-  const size_t bytes = count_ * sizeof(LogRecord);
+  const size_t bytes = count_ * recSize_;
   if (segBytes_ + bytes > kSegmentBytes) {  // nächstes Segment
     file_.close();
     segment_++;
@@ -250,9 +265,11 @@ void TrackLog::list(Print& out) {
       File f = LittleFS.open(names_[i], FILE_READ);
       if (!f) continue;
       const size_t s = f.size();
+      LogHeader h;
+      const bool hdr = f.read((uint8_t*)&h, sizeof(h)) == sizeof(h) && h.recordSize > 0;
       f.close();
       size += s;
-      if (s > sizeof(LogHeader)) recs += (s - sizeof(LogHeader)) / sizeof(LogRecord);
+      if (hdr && s > sizeof(LogHeader)) recs += (s - sizeof(LogHeader)) / h.recordSize;
       segs++;
     }
     out.printf("%s  %3lu Segmente  %8u Bytes  %7u Positionen%s\r\n", key, (unsigned long)segs,
@@ -271,14 +288,20 @@ bool TrackLog::dumpFile(const char* path, Print& out, bool header) {
   if (!f) return false;
   LogHeader h;
   if (f.read((uint8_t*)&h, sizeof(h)) != sizeof(h) || memcmp(h.magic, "SCTL", 4) != 0 ||
-      h.recordSize != sizeof(LogRecord)) {
+      (h.recordSize != sizeof(LogRecord) && h.recordSize != kMaxRecordSize)) {
     f.close();
     return false;
   }
+  const bool withMotion = h.recordSize == kMaxRecordSize;
   const uint32_t dd = h.date / 10000, mm = (h.date / 100) % 100, yy = h.date % 100;
-  if (header) out.println("date,utc,time_ms,lat,lon,speed_mps,course_deg,sats,fix,hdop,battery_mv");
+  if (header) {
+    out.println("date,utc,time_ms,lat,lon,speed_mps,course_deg,sats,fix,hdop,battery_mv,"
+                "motion_rms_g,motion_peak_g,tilt_deg");
+  }
   LogRecord r;
+  LogMotion m;
   while (f.read((uint8_t*)&r, sizeof(r)) == sizeof(r)) {
+    if (withMotion && f.read((uint8_t*)&m, sizeof(m)) != sizeof(m)) break;
     const uint32_t t = r.timeMs % kMsPerDay;
     out.printf("20%02lu-%02lu-%02lu,%02lu:%02lu:%02lu.%03lu,%lu,", (unsigned long)yy, (unsigned long)mm,
                (unsigned long)dd, (unsigned long)(t / 3600000), (unsigned long)((t / 60000) % 60),
@@ -286,9 +309,15 @@ bool TrackLog::dumpFile(const char* path, Print& out, bool header) {
     printE7(out, r.latE7);
     out.print(',');
     printE7(out, r.lonE7);
-    out.printf(",%u.%02u,%u.%02u,%u,%u,%u.%u,%u\r\n", r.speedCms / 100, r.speedCms % 100,
+    out.printf(",%u.%02u,%u.%02u,%u,%u,%u.%u,%u", r.speedCms / 100, r.speedCms % 100,
                r.courseCdeg / 100, r.courseCdeg % 100, r.sats, r.fixQuality, r.hdopX10 / 10,
                r.hdopX10 % 10, r.battery ? 2000 + r.battery * 10 : 0);
+    if (withMotion && m.rms != 255 && m.peak != 255 && m.tilt != 255) {
+      out.printf(",%u.%02u,%u.%u,%u\r\n", m.rms * 5 / 100, m.rms * 5 % 100, m.peak / 10, m.peak % 10,
+                 m.tilt);
+    } else {
+      out.print(",,,\r\n");
+    }
   }
   f.close();
   return true;

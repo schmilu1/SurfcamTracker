@@ -11,6 +11,7 @@
 Gnss gnss(Serial1);
 Radio radio;
 TrackLog trackLog;
+Motion motion;
 
 // ---------------------------------------------------------------- Zustand
 
@@ -154,6 +155,7 @@ static void enterDeepSleep() {
 void powerOff(const char* reason) {
   Serial.printf("[power] Ausschalten (%s)\r\n", reason);
   trackLog.close();
+  motion.sleep();
   gnss.end();  // GNSS-Versorgung aus (10k Pulldown hält IO12 im Sleep auf LOW)
   radio.sleep();
   ledsOff();
@@ -242,6 +244,11 @@ static void maybeSend() {
   } else {
     p.fix = surfcam::FIX_NONE;
   }
+  const MotionSummary m = motion.takeForPacket();
+  p.motion = m.valid;
+  p.motionRmsMg = m.rmsMg;
+  p.motionPeakMg = m.peakMg;
+  p.tiltDeg = m.tiltDeg;
 
   uint8_t buf[surfcam::kPacketSize];
   const size_t n = surfcam::encodePosition(p, buf, sizeof(buf));
@@ -255,6 +262,18 @@ static void maybeSend() {
       ledFlash(g_blue, timing::LED_FLASH_MS);
     }
   }
+}
+
+// Bewegungswerte für einen Log-Datensatz (nur aufgerufen, wenn tatsächlich geloggt wird)
+static LogMotion logMotion() {
+  LogMotion lm = {255, 255, 255, 0};
+  const MotionSummary m = motion.takeForLog();
+  if (m.valid) {
+    lm.rms = (uint8_t)min(254, (m.rmsMg + 25) / 50);
+    lm.peak = (uint8_t)min(254, (m.peakMg + 50) / 100);
+    lm.tilt = m.tiltDeg;
+  }
+  return lm;
 }
 
 // ---------------------------------------------------------------- Status
@@ -299,8 +318,16 @@ void printStatus(Print& out) {
              (unsigned long)txIntervalMs(), settings.txIntervalMs ? "fest" : "auto",
              1000.0f / txIntervalMs(), (unsigned long)radio.minSpacingMs(surfcam::kPacketSize), duty,
              radio.averageDutyPercent());
+  if (motion.ok()) {
+    const MotionSummary m = motion.peekLive();
+    out.printf("Bewegung: LIS3DH 0x%02X, %lu Messwerte, FIFO-Überläufe %lu, aktuell %.2f g dynamisch, Spitze %.2f g, Neigung %u°\r\n",
+               motion.address(), (unsigned long)motion.samples(), (unsigned long)motion.overruns(),
+               m.rmsMg / 1000.0f, m.peakMg / 1000.0f, m.tiltDeg);
+  } else {
+    out.println("Bewegung: kein Sensor");
+  }
   out.printf("Akku:  %u mV\r\n", batteryMv());
-  out.printf("Log:   %u Hz, %s, %lu Positionen, %u kB frei\r\n", trackLog.rate(),
+  out.printf("Log:   %u Hz%s, %s, %lu Positionen, %u kB frei\r\n", trackLog.rate(), trackLog.motion() ? " mit Bewegung" : "",
              trackLog.currentName()[0] ? trackLog.currentName() : "keine aktive Session",
              (unsigned long)trackLog.recordsInSession(), (unsigned)(trackLog.freeBytes() / 1024));
 }
@@ -334,8 +361,10 @@ void appSetup() {
 
   g_batteryEma = readBatteryRaw();
   trackLog.setRate(settings.logHz);
+  trackLog.setMotion(settings.logMotion);
   trackLog.begin();
   applyRadioSettings();
+  motion.begin();
   gnss.begin(settings.gnssHz);
 
   digitalWrite(pins::LED_GREEN, LOW);
@@ -352,9 +381,10 @@ void appLoop() {
     g_fix = f;
     g_haveFix = true;
     g_newFix = true;
-    if (f.valid) trackLog.append(f, batteryMv(), settings.deviceId);
+    if (f.valid) trackLog.append(f, batteryMv(), settings.deviceId, logMotion);
   }
 
+  motion.poll();
   maybeSend();
   trackLog.tick();
   updateBattery();
