@@ -1,0 +1,7 @@
+# SurfCam Rover: eine App ohne OTA, der Rest für das Positionslog (LittleFS).
+# nvs liegt wie in default.csv bei 0x9000, damit die Einstellungen erhalten bleiben.
+# Name,    Type, SubType,  Offset,   Size
+nvs,       data, nvs,      0x9000,   0x5000
+app0,      app,  factory,  0x10000,  0x180000
+spiffs,    data, spiffs,   0x190000, 0x260000
+coredump,  data, coredump, 0x3F0000, 0x10000

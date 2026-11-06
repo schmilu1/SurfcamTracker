@@ -86,12 +86,12 @@ Werte abfragen mit `AT+XXX?` oder `AT+XXX=?`. Einstellungen werden sofort im NVS
 
 ## Positionslog
 
-Jede gültige Position landet im Flash (LittleFS, ca. 1,4 MB), eine Datei pro Session ab dem ersten Fix: `YYMMDD_hhmmss.trk` (UTC). Geschrieben wird alle 5 s bzw. nach 64 Positionen, bei Stromausfall gehen also höchstens 5 s verloren.
+Jede gültige Position landet im Flash (LittleFS, ca. 2,4 MB, eigene Partitionstabelle [partitions.csv](partitions.csv) ohne OTA), eine Datei pro Session ab dem ersten Fix: `YYMMDD_hhmmss.trk` (UTC). Geschrieben wird alle 5 s bzw. nach 64 Positionen, bei Stromausfall gehen also höchstens 5 s verloren.
 
 | GNSS-Rate | Datenrate | Kapazität |
 |---|---|---|
-| 5 Hz | 100 B/s | ≈ 3,8 h |
-| 10 Hz | 200 B/s | ≈ 1,9 h |
+| 5 Hz | 100 B/s | ≈ 6,7 h |
+| 10 Hz | 200 B/s | ≈ 3,3 h |
 
 Wird der Platz knapp, wird die älteste Session gelöscht. Die laufende Session wird nie gelöscht; ist nur noch sie übrig, stoppt die Aufzeichnung.
 
@@ -127,7 +127,7 @@ pio test -e native        # 27 Unit-Tests, ohne Hardware
 ### Arduino IDE (alternativ)
 
 1. Boardverwaltung: **esp32 by Espressif Systems 3.3.12** (getestet wird gegen diese Version; nicht die Vorabversion 4.0.0-RC1)
-2. Board **ESP32 PICO-D4**, Flash Mode **DIO**, Partition Scheme **Default 4MB with spiffs**
+2. Board **ESP32 PICO-D4**, Flash Mode **DIO**, Partition Scheme egal: die `partitions.csv` im Sketch-Ordner wird automatisch verwendet
 3. Bibliothek **RadioLib 7.8.1** von Jan Gromes installieren
 4. `firmware/rover/rover.ino` öffnen und hochladen
 
