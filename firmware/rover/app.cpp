@@ -332,6 +332,39 @@ void printStatus(Print& out) {
              (unsigned long)trackLog.recordsInSession(), (unsigned)(trackLog.freeBytes() / 1024));
 }
 
+// Einstellungen und Status als eine JSON-Zeile (für das Test-GUI auf dem Pi)
+void printJson(Print& out) {
+  const BandProfile* band = currentBand();
+  const surfcam::NmeaStats& s = gnss.stats();
+  out.printf("{\"fw\":\"%s\",\"uptime_s\":%lu,", ROVER_FW_VERSION, (unsigned long)(millis() / 1000));
+  out.printf("\"settings\":{\"id\":%u,\"rate\":%u,\"txint\":%u,\"txp\":%d,\"freq\":%lu,\"sf\":%u,"
+             "\"bw\":%lu,\"led\":%u,\"lograte\":%u,\"logmotion\":%u,\"band\":\"%c\"},",
+             settings.deviceId, settings.gnssHz, settings.txIntervalMs, settings.txPowerDbm,
+             (unsigned long)settings.freqHz, settings.sf, (unsigned long)settings.bwHz, settings.leds ? 1 : 0,
+             settings.logHz, settings.logMotion ? 1 : 0, band ? band->name : '-');
+  out.printf("\"gnss\":{\"alive\":%s,\"hz\":%.1f,\"fix\":%s,\"quality\":%u,\"sats\":%u,\"hdop\":%.1f,",
+             gnssAlive() ? "true" : "false", gnss.measuredHz(), fixValid() ? "true" : "false",
+             g_haveFix ? g_fix.fixQuality : 0, g_haveFix ? g_fix.sats : 0,
+             g_haveFix ? g_fix.hdopX10 / 10.0 : 0.0);
+  out.printf("\"lat\":%.7f,\"lon\":%.7f,\"speed\":%.2f,\"course\":%.1f,\"utc_ms\":%ld,"
+             "\"sentences\":%lu,\"checksum_errors\":%lu},",
+             g_fix.latE7 / 1e7, g_fix.lonE7 / 1e7, g_fix.speedCms / 100.0, g_fix.courseCdeg / 100.0,
+             g_haveFix && g_fix.timeMs != surfcam::kTimeUnknown ? (long)g_fix.timeMs : -1L,
+             (unsigned long)s.sentences, (unsigned long)s.checksumErrors);
+  out.printf("\"radio\":{\"ok\":%s,\"sent\":%lu,\"failed\":%lu,\"interval_ms\":%lu,\"min_ms\":%lu,"
+             "\"duty_permille\":%u,\"avg_duty\":%.2f},",
+             radio.ok() ? "true" : "false", (unsigned long)radio.txCount(), (unsigned long)radio.txFailed(),
+             (unsigned long)txIntervalMs(), (unsigned long)radio.minSpacingMs(surfcam::kPacketSize),
+             radio.dutyPermille(), radio.averageDutyPercent());
+  const MotionSummary m = motion.peekLive();
+  out.printf("\"motion\":{\"ok\":%s,\"rms_g\":%.2f,\"peak_g\":%.2f,\"tilt\":%u},",
+             motion.ok() ? "true" : "false", m.rmsMg / 1000.0, m.peakMg / 1000.0, m.tiltDeg);
+  out.printf("\"battery_mv\":%u,", batteryMv());
+  out.printf("\"log\":{\"session\":\"%s\",\"records\":%lu,\"free_kb\":%u,\"total_kb\":%u}}\r\n",
+             trackLog.currentName(), (unsigned long)trackLog.recordsInSession(),
+             (unsigned)(trackLog.freeBytes() / 1024), (unsigned)(trackLog.totalBytes() / 1024));
+}
+
 // ---------------------------------------------------------------- Ablauf
 
 void appSetup() {

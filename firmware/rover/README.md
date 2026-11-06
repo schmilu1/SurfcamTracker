@@ -98,6 +98,7 @@ Unter 3,3 V Akkuspannung (10 s lang) schaltet sich der Rover selbst ab.
 |---|---|---|
 | `AT` | Verbindungstest | |
 | `ATI` / `AT+INFO` | Status: GNSS-Rate (Soll/gemessen), Fix, Funk, Duty Cycle, Akku, Log | |
+| `AT+JSON` | Einstellungen und Status als eine JSON-Zeile (für das Test-GUI auf dem Pi) | |
 | `AT+ID=<0..31>` | Geräte-ID im Paket | 1 |
 | `AT+RATE=<1\|2\|4\|5\|10>` | GNSS-Rate in Hz (wirkt sofort) | 10 |
 | `AT+BAND=<A\|B>` | Funkprofil: setzt Frequenz und Sendeleistung, siehe [Funkbänder](#funkbänder) | A |
