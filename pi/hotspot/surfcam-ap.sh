@@ -31,7 +31,7 @@ if ! $IW dev "$AP" info >/dev/null 2>&1; then
   mac=$(cat /sys/class/net/$STA/address)
   # eigene MAC-Adresse: Bit "lokal verwaltet" im ersten Byte und letztes Bit umschalten
   # (nur das erste Bit ergäbe dieselbe Adresse wie die P2P-Schnittstelle des Chips)
-  ip link set "$AP" address "$(printf %02x $((0x${mac:0:2} ^ 0x02)))${mac:2:12}$(printf %02x $((0x${mac:15:2} ^ 0x01)))"
+  ip link set "$AP" address "$(printf %02x $((0x${mac:0:2} ^ 0x02)))${mac:2:13}$(printf %02x $((0x${mac:15:2} ^ 0x01)))"
   sleep 2
 fi
 
