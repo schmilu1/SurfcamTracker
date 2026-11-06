@@ -17,6 +17,7 @@ void Settings::load() {
   sf = p.getUChar("sf", sf);
   bwHz = p.getULong("bw", bwHz);
   leds = p.getBool("leds", leds);
+  logHz = p.getUChar("logHz", logHz);
   p.end();
 }
 
@@ -31,6 +32,7 @@ void Settings::save() const {
   p.putUChar("sf", sf);
   p.putULong("bw", bwHz);
   p.putBool("leds", leds);
+  p.putUChar("logHz", logHz);
   p.end();
 }
 

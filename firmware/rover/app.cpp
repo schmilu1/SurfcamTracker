@@ -268,8 +268,8 @@ void printStatus(Print& out) {
              settings.txIntervalMs, (unsigned long)radio.minSpacingMs(surfcam::kPacketSize),
              radio.dutyPermille() / 10, radio.averageDutyPercent());
   out.printf("Akku:  %u mV\r\n", batteryMv());
-  out.printf("Log:   %s, %lu Positionen, %u kB frei\r\n",
-             trackLog.currentName()[0] ? trackLog.currentName() + 1 : "keine aktive Session",
+  out.printf("Log:   %u Hz, %s, %lu Positionen, %u kB frei\r\n", trackLog.rate(),
+             trackLog.currentName()[0] ? trackLog.currentName() : "keine aktive Session",
              (unsigned long)trackLog.recordsInSession(), (unsigned)(trackLog.freeBytes() / 1024));
 }
 
@@ -301,6 +301,7 @@ void appSetup() {
   Serial.printf("\r\n=== SurfCam Rover %s ===\r\n", ROVER_FW_VERSION);
 
   g_batteryEma = readBatteryRaw();
+  trackLog.setRate(settings.logHz);
   trackLog.begin();
   applyRadioSettings();
   gnss.begin(settings.gnssHz);

@@ -9,11 +9,27 @@ using surfcam::GnssFix;
 using surfcam::kMsPerDay;
 using surfcam::kTimeUnknown;
 
+char TrackLog::names_[TrackLog::kMaxFiles][32];  // static: nicht auf den Stack des Loop-Tasks
+
 namespace {
+
+constexpr size_t kSessionLen = 13;  // "YYMMDD_hhmmss"
 
 bool isTrackFile(const char* name) {
   size_t l = strlen(name);
   return l > 4 && strcmp(name + l - 4, ".trk") == 0;
+}
+
+// "/261106_120000_003.trk" gehört zur Session "261106_120000" (auch alte Dateien ohne Segment)
+bool inSession(const char* path, const char* session) {
+  return strncmp(path + 1, session, kSessionLen) == 0 && strlen(session) == kSessionLen;
+}
+
+// Name ohne führenden '/' und ohne ".trk"
+void stripName(const char* in, char* out, size_t outLen) {
+  snprintf(out, outLen, "%s", in[0] == '/' ? in + 1 : in);
+  size_t l = strlen(out);
+  if (l > 4 && strcmp(out + l - 4, ".trk") == 0) out[l - 4] = '\0';
 }
 
 // Grad * 1e7 ohne Fliesskomma-Rundung ausgeben
@@ -51,37 +67,46 @@ void TrackLog::normalize(const char* in, char* out, size_t outLen) {
   }
 }
 
-bool TrackLog::deleteOldest() {
+uint32_t TrackLog::collect(const char* session) {
+  uint32_t n = 0;
+  if (!ok_) return 0;
   File root = LittleFS.open("/");
-  if (!root) return false;
-  char oldest[32] = "";
-  for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+  if (!root) return 0;
+  for (File f = root.openNextFile(); f && n < kMaxFiles; f = root.openNextFile()) {
     char path[32];
     normalize(f.name(), path, sizeof(path));
-    if (!isTrackFile(path) || strcmp(path, name_) == 0) continue;
-    // Dateinamen sind Zeitstempel -> alphabetisch kleinster ist der älteste
-    if (oldest[0] == '\0' || strcmp(path, oldest) < 0) snprintf(oldest, sizeof(oldest), "%s", path);
+    if (!isTrackFile(path)) continue;
+    if (session && !inSession(path, session)) continue;
+    // sortiert einfügen (alphabetisch = chronologisch)
+    uint32_t i = n++;
+    while (i > 0 && strcmp(names_[i - 1], path) > 0) {
+      memcpy(names_[i], names_[i - 1], sizeof(names_[0]));
+      i--;
+    }
+    memcpy(names_[i], path, sizeof(names_[0]));
   }
   root.close();
-  if (oldest[0] == '\0') return false;
-  Serial.printf("[log] Platz knapp, lösche %s\r\n", oldest);
-  return LittleFS.remove(oldest);
+  return n;
+}
+
+bool TrackLog::deleteOldest() {
+  const uint32_t n = collect(nullptr);
+  for (uint32_t i = 0; i < n; i++) {
+    if (strcmp(names_[i], name_) == 0) continue;  // aktives Segment nie löschen
+    Serial.printf("[log] Platz knapp, lösche %s\r\n", names_[i] + 1);
+    return LittleFS.remove(names_[i]);
+  }
+  return false;
 }
 
 bool TrackLog::latestName(char* out, size_t len) {
-  if (!ok_ || len == 0) return false;
-  File root = LittleFS.open("/");
-  if (!root) return false;
-  char newest[32] = "";
-  for (File f = root.openNextFile(); f; f = root.openNextFile()) {
-    char path[32];
-    normalize(f.name(), path, sizeof(path));
-    // Dateinamen sind Zeitstempel -> alphabetisch grösster ist der neueste
-    if (isTrackFile(path) && strcmp(path, newest) > 0) snprintf(newest, sizeof(newest), "%s", path);
-  }
-  root.close();
-  if (newest[0] == '\0') return false;
-  snprintf(out, len, "%s", newest + 1);
+  if (len == 0) return false;
+  const uint32_t n = collect(nullptr);
+  if (n == 0) return false;
+  char s[32];
+  stripName(names_[n - 1], s, sizeof(s));
+  s[kSessionLen] = '\0';
+  snprintf(out, len, "%s", s);
   return true;
 }
 
@@ -92,50 +117,71 @@ bool TrackLog::ensureSpace(size_t needBytes) {
   return true;
 }
 
-bool TrackLog::openSession(const GnssFix& f, uint8_t deviceId) {
-  if (f.date == 0 || f.timeMs == kTimeUnknown) return false;
-  if (!ensureSpace(sizeof(buf_))) {
+bool TrackLog::openSegment() {
+  if (!ensureSpace(sizeof(buf_) + sizeof(LogHeader))) {
     if (!full_) Serial.println("[log] Flash voll, Aufzeichnung gestoppt");
     full_ = true;
     return false;
   }
-  const uint32_t dd = f.date / 10000, mm = (f.date / 100) % 100, yy = f.date % 100;
-  const uint32_t s = f.timeMs / 1000;
-  snprintf(name_, sizeof(name_), "/%02lu%02lu%02lu_%02lu%02lu%02lu.trk", (unsigned long)yy,
-           (unsigned long)mm, (unsigned long)dd, (unsigned long)(s / 3600),
-           (unsigned long)((s / 60) % 60), (unsigned long)(s % 60));
+  snprintf(name_, sizeof(name_), "/%s_%03u.trk", session_, (unsigned)segment_);
   file_ = LittleFS.open(name_, FILE_WRITE);
   if (!file_) {
-    Serial.printf("[log] kann %s nicht anlegen\r\n", name_);
+    Serial.printf("[log] kann %s nicht anlegen\r\n", name_ + 1);
     name_[0] = '\0';
     return false;
   }
   LogHeader h;
   memcpy(h.magic, "SCTL", 4);
   h.version = 1;
-  h.deviceId = deviceId;
+  h.deviceId = deviceId_;
   h.recordSize = sizeof(LogRecord);
-  h.date = f.date;
+  h.date = date_;
   file_.write((const uint8_t*)&h, sizeof(h));
   file_.flush();
+  segBytes_ = sizeof(h);
+  return true;
+}
+
+bool TrackLog::openSession(const GnssFix& f, uint8_t deviceId) {
+  if (f.date == 0 || f.timeMs == kTimeUnknown) return false;
+  const uint32_t dd = f.date / 10000, mm = (f.date / 100) % 100, yy = f.date % 100;
+  const uint32_t s = f.timeMs / 1000;
+  snprintf(session_, sizeof(session_), "%02lu%02lu%02lu_%02lu%02lu%02lu", (unsigned long)yy,
+           (unsigned long)mm, (unsigned long)dd, (unsigned long)(s / 3600),
+           (unsigned long)((s / 60) % 60), (unsigned long)(s % 60));
+  segment_ = 0;
+  date_ = f.date;
+  deviceId_ = deviceId;
+  if (!openSegment()) {
+    session_[0] = '\0';
+    return false;
+  }
   lastTimeMs_ = f.timeMs;
   dayOffsetMs_ = 0;
   records_ = 0;
+  haveBucket_ = false;
   lastFlushMs_ = millis();
-  Serial.printf("[log] neue Session %s\r\n", name_);
+  Serial.printf("[log] neue Session %s, %u Hz\r\n", session_, rateHz_);
   return true;
 }
 
 void TrackLog::append(const GnssFix& f, uint16_t batteryMv, uint8_t deviceId) {
-  if (!ok_ || full_ || !f.valid || f.timeMs == kTimeUnknown) return;
+  if (!ok_ || full_ || rateHz_ == 0 || !f.valid || f.timeMs == kTimeUnknown) return;
   if (!file_ && !openSession(f, deviceId)) return;
 
   // Mitternacht: Zeit springt von ~86'400'000 auf ~0
   if (f.timeMs + kMsPerDay / 2 < lastTimeMs_) dayOffsetMs_ += kMsPerDay;
   lastTimeMs_ = f.timeMs;
+  const uint32_t t = f.timeMs + dayOffsetMs_;
+
+  // Lograte: pro Zeitfenster von 1/rate s nur der erste Fix (unabhängig von der GNSS-Rate)
+  const uint32_t bucket = t / (1000 / rateHz_);
+  if (haveBucket_ && bucket == lastBucket_) return;
+  haveBucket_ = true;
+  lastBucket_ = bucket;
 
   LogRecord& r = buf_[count_++];
-  r.timeMs = f.timeMs + dayOffsetMs_;
+  r.timeMs = t;
   r.latE7 = f.latE7;
   r.lonE7 = f.lonE7;
   r.speedCms = f.speedCms;
@@ -150,15 +196,27 @@ void TrackLog::append(const GnssFix& f, uint16_t batteryMv, uint8_t deviceId) {
 
 void TrackLog::flush() {
   if (!file_ || count_ == 0) return;
-  if (!ensureSpace(count_ * sizeof(LogRecord))) {
+  const size_t bytes = count_ * sizeof(LogRecord);
+  if (segBytes_ + bytes > kSegmentBytes) {  // nächstes Segment
+    file_.close();
+    segment_++;
+    if (!openSegment()) {
+      count_ = 0;
+      name_[0] = '\0';
+      session_[0] = '\0';
+      return;
+    }
+  }
+  if (!ensureSpace(bytes)) {
     Serial.println("[log] Flash voll, Aufzeichnung gestoppt");
     full_ = true;
     count_ = 0;
     close();
     return;
   }
-  file_.write((const uint8_t*)buf_, count_ * sizeof(LogRecord));
+  file_.write((const uint8_t*)buf_, bytes);
   file_.flush();
+  segBytes_ += bytes;
   count_ = 0;
   lastFlushMs_ = millis();
 }
@@ -171,6 +229,7 @@ void TrackLog::close() {
   flush();
   if (file_) file_.close();
   name_[0] = '\0';
+  session_[0] = '\0';
 }
 
 void TrackLog::list(Print& out) {
@@ -178,27 +237,35 @@ void TrackLog::list(Print& out) {
     out.println("LittleFS nicht verfügbar");
     return;
   }
-  File root = LittleFS.open("/");
-  uint32_t n = 0;
-  for (File f = root.openNextFile(); f; f = root.openNextFile()) {
-    char path[32];
-    normalize(f.name(), path, sizeof(path));
-    if (!isTrackFile(path)) continue;
-    size_t size = f.size();
-    size_t recs = size > sizeof(LogHeader) ? (size - sizeof(LogHeader)) / sizeof(LogRecord) : 0;
-    out.printf("%s  %7u Bytes  %6u Positionen%s\r\n", path + 1, (unsigned)size, (unsigned)recs,
-               strcmp(path, name_) == 0 ? "  (aktiv)" : "");
-    n++;
+  // Pro Session eine Zeile: Segmente, Grösse, Positionen
+  const uint32_t n = collect(nullptr);
+  uint32_t sessions = 0;
+  for (uint32_t i = 0; i < n;) {
+    char key[32];
+    stripName(names_[i], key, sizeof(key));
+    key[kSessionLen] = '\0';
+    uint32_t segs = 0;
+    size_t size = 0, recs = 0;
+    for (; i < n && inSession(names_[i], key); i++) {
+      File f = LittleFS.open(names_[i], FILE_READ);
+      if (!f) continue;
+      const size_t s = f.size();
+      f.close();
+      size += s;
+      if (s > sizeof(LogHeader)) recs += (s - sizeof(LogHeader)) / sizeof(LogRecord);
+      segs++;
+    }
+    out.printf("%s  %3lu Segmente  %8u Bytes  %7u Positionen%s\r\n", key, (unsigned long)segs,
+               (unsigned)size, (unsigned)recs, strcmp(key, session_) == 0 ? "  (aktiv)" : "");
+    sessions++;
   }
-  root.close();
-  out.printf("%lu Dateien, %u kB frei von %u kB\r\n", (unsigned long)n,
-             (unsigned)(freeBytes() / 1024), (unsigned)(totalBytes() / 1024));
+  out.printf("%lu Sessions, %lu Dateien, %u kB frei von %u kB, Lograte %u Hz\r\n",
+             (unsigned long)sessions, (unsigned long)n, (unsigned)(freeBytes() / 1024),
+             (unsigned)(totalBytes() / 1024), rateHz_);
 }
 
-bool TrackLog::dump(const char* name, Print& out) {
-  char path[32];
-  normalize(name, path, sizeof(path));
-  if (strcmp(path, name_) == 0) flush();  // aktive Session zuerst schreiben
+bool TrackLog::dumpFile(const char* path, Print& out, bool header) {
+  if (strcmp(path, name_) == 0) flush();  // aktives Segment zuerst schreiben
 
   File f = LittleFS.open(path, FILE_READ);
   if (!f) return false;
@@ -209,7 +276,7 @@ bool TrackLog::dump(const char* name, Print& out) {
     return false;
   }
   const uint32_t dd = h.date / 10000, mm = (h.date / 100) % 100, yy = h.date % 100;
-  out.println("date,utc,time_ms,lat,lon,speed_mps,course_deg,sats,fix,hdop,battery_mv");
+  if (header) out.println("date,utc,time_ms,lat,lon,speed_mps,course_deg,sats,fix,hdop,battery_mv");
   LogRecord r;
   while (f.read((uint8_t*)&r, sizeof(r)) == sizeof(r)) {
     const uint32_t t = r.timeMs % kMsPerDay;
@@ -227,29 +294,53 @@ bool TrackLog::dump(const char* name, Print& out) {
   return true;
 }
 
+bool TrackLog::dump(const char* name, Print& out) {
+  if (!ok_) return false;
+  if (isTrackFile(name)) {  // einzelnes Segment
+    char path[32];
+    normalize(name, path, sizeof(path));
+    return dumpFile(path, out, true);
+  }
+  char key[32];
+  stripName(name, key, sizeof(key));
+  // Zuerst schreiben: flush() kann über ensureSpace() names_ überschreiben. Während der Ausgabe
+  // kommen keine neuen Datensätze dazu, dumpFile() schreibt danach nichts mehr.
+  if (strcmp(key, session_) == 0) flush();
+  const uint32_t n = collect(key);
+  bool any = false;
+  for (uint32_t i = 0; i < n; i++) {
+    if (dumpFile(names_[i], out, !any)) any = true;
+  }
+  return any;
+}
+
 bool TrackLog::remove(const char* name) {
-  char path[32];
-  normalize(name, path, sizeof(path));
-  if (strcmp(path, name_) == 0) close();
+  if (!ok_) return false;
   full_ = false;
-  return LittleFS.remove(path);
+  if (isTrackFile(name)) {
+    char path[32];
+    normalize(name, path, sizeof(path));
+    if (strcmp(path, name_) == 0) close();
+    return LittleFS.remove(path);
+  }
+  char key[32];
+  stripName(name, key, sizeof(key));
+  if (strcmp(key, session_) == 0) close();
+  const uint32_t n = collect(key);
+  uint32_t removed = 0;
+  for (uint32_t i = 0; i < n; i++) {
+    if (LittleFS.remove(names_[i])) removed++;
+  }
+  return removed > 0;
 }
 
 uint32_t TrackLog::removeAll() {
   close();
   full_ = false;
+  const uint32_t count = collect(nullptr);  // erst Namen sammeln, dann löschen
   uint32_t n = 0;
-  // Erst Namen sammeln, dann löschen (nicht während der Verzeichnisiteration)
-  static char names[64][32];  // static: nicht auf den Stack des Loop-Tasks
-  uint32_t count = 0;
-  File root = LittleFS.open("/");
-  for (File f = root.openNextFile(); f && count < 64; f = root.openNextFile()) {
-    normalize(f.name(), names[count], sizeof(names[0]));
-    if (isTrackFile(names[count])) count++;
-  }
-  root.close();
   for (uint32_t i = 0; i < count; i++) {
-    if (LittleFS.remove(names[i])) n++;
+    if (LittleFS.remove(names_[i])) n++;
   }
   return n;
 }

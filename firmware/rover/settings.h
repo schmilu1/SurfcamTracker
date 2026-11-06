@@ -14,6 +14,7 @@ struct Settings {
   uint8_t sf = defaults::SF;
   uint32_t bwHz = defaults::BW_HZ;
   bool leds = defaults::LEDS;
+  uint8_t logHz = defaults::LOG_HZ;
 
   void load();
   void save() const;

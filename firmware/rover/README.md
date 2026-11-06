@@ -75,9 +75,10 @@ Unter 3,3 V Akkuspannung (10 s lang) schaltet sich der Rover selbst ab.
 | `AT+NMEA=<0\|1>` | NMEA-Rohdaten anzeigen (nicht gespeichert) | 0 |
 | `AT+BTN` | Tastentest: 10 s lang Pegel von IO0 und IO25 anzeigen | |
 | `AT+GNSS=<befehl>` | Befehl ans L76K, ohne `$` und Prüfsumme, z. B. `AT+GNSS=PCAS06,0` | |
+| `AT+LOGRATE=<Hz>` | Lograte: 0 (aus), 1, 2, 4, 5, 10 | 5 |
 | `AT+LOG` | Sessions im Flash auflisten | |
-| `AT+LOGDUMP` / `AT+LOGDUMP=<datei>` | neueste bzw. angegebene Session als CSV ausgeben (Name aus `AT+LOG`, z. B. `261105_214349.trk`) | |
-| `AT+LOGDEL=<datei>` / `AT+LOGDEL=ALL` | Session(s) löschen | |
+| `AT+LOGDUMP` / `AT+LOGDUMP=<session>` | neueste bzw. angegebene Session als CSV ausgeben (Name aus `AT+LOG`, z. B. `261106_120000`) | |
+| `AT+LOGDEL=<session>` / `AT+LOGDEL=ALL` | Session(s) löschen | |
 | `AT+SLEEP` | Ausschalten | |
 | `ATZ` | Neustart | |
 | `AT+FDR` | Werkseinstellungen, Neustart | |
@@ -86,16 +87,18 @@ Werte abfragen mit `AT+XXX?` oder `AT+XXX=?`. Einstellungen werden sofort im NVS
 
 ## Positionslog
 
-Jede gültige Position landet im Flash (LittleFS, ca. 2,4 MB, eigene Partitionstabelle [partitions.csv](partitions.csv) ohne OTA), eine Datei pro Session ab dem ersten Fix: `YYMMDD_hhmmss.trk` (UTC). Geschrieben wird alle 5 s bzw. nach 64 Positionen, bei Stromausfall gehen also höchstens 5 s verloren.
+Gültige Positionen landen im Flash (LittleFS, ca. 2,4 MB, eigene Partitionstabelle [partitions.csv](partitions.csv) ohne OTA). Eine Session beginnt mit dem ersten Fix und heisst nach dessen UTC-Zeit `YYMMDD_hhmmss`. Sie besteht aus Segmentdateien à höchstens 64 kB: `YYMMDD_hhmmss_000.trk`, `_001.trk`, … Geschrieben wird alle 5 s bzw. nach 64 Positionen, bei Stromausfall gehen also höchstens 5 s verloren.
 
-| GNSS-Rate | Datenrate | Kapazität |
+**Lograte:** `AT+LOGRATE=<Hz>` (0 = aus, 1, 2, 4, 5, 10; Standard 5), unabhängig von der GNSS-Rate. Ausgewählt wird nach UTC-Zeit: bei 5 Hz der erste Fix in jedem 200-ms-Fenster.
+
+| Lograte | Datenrate | Kapazität |
 |---|---|---|
 | 5 Hz | 100 B/s | ≈ 6,7 h |
 | 10 Hz | 200 B/s | ≈ 3,3 h |
 
-Wird der Platz knapp, wird die älteste Session gelöscht. Die laufende Session wird nie gelöscht; ist nur noch sie übrig, stoppt die Aufzeichnung.
+**Ringpuffer:** Wird der Platz knapp, wird das älteste Segment gelöscht, auch aus der laufenden Session. Das Log hält also immer die letzten ≈ 6,7 h (bei 5 Hz), die Aufzeichnung stoppt nie.
 
-**Auslesen:** `AT+LOG` zeigt die Sessions, `AT+LOGDUMP` gibt die neueste als CSV im Monitor aus (`AT+LOGDUMP=<datei>` eine bestimmte). Der Parameter ist der Name der Datei im Flash, nicht eine Zieldatei.
+**Auslesen:** `AT+LOG` zeigt die Sessions (mit Anzahl Segmente), `AT+LOGDUMP` gibt die neueste als CSV im Monitor aus, alle Segmente hintereinander. `AT+LOGDUMP=<session>` gibt eine bestimmte aus, `AT+LOGDUMP=<datei>.trk` ein einzelnes Segment. Der Parameter ist der Name im Flash, nicht eine Zieldatei.
 
 In eine Datei auf dem Mac speichern: Monitor mit Mitschnitt starten, `AT+LOGDUMP` eingeben, Monitor beenden. Die Datei `platformio-device-monitor-*.log` liegt im aktuellen Ordner; die CSV-Zeilen beginnen nach der Zeile `date,utc,...`.
 
@@ -110,7 +113,7 @@ date,utc,time_ms,lat,lon,speed_mps,course_deg,sats,fix,hdop,battery_mv
 2026-11-05,21:21:19.900,76879900,47.5529780,8.8972410,0.00,256.70,6,1,4.3,3950
 ```
 
-Binärformat ([tracklog.h](tracklog.h), Little Endian): 12-Byte-Kopf (`"SCTL"`, Version, Geräte-ID, Datensatzgrösse, Datum DDMMYY), danach Datensätze à 20 Bytes. `time_ms` läuft über Mitternacht hinaus weiter.
+Binärformat ([tracklog.h](tracklog.h), Little Endian), pro Segment: 12-Byte-Kopf (`"SCTL"`, Version, Geräte-ID, Datensatzgrösse, Datum DDMMYY), danach Datensätze à 20 Bytes. `time_ms` läuft über Mitternacht hinaus weiter.
 
 ## Build
 

@@ -39,9 +39,10 @@ void printHelp() {
       "AT+NMEA=<0|1>    NMEA-Rohdaten anzeigen (nicht gespeichert)\r\n"
       "AT+GNSS=<cmd>    Befehl an L76K senden, z. B. AT+GNSS=PCAS06,0\r\n"
       "AT+BTN           Tastentest: 10 s lang Pegel von IO0 und IO25 anzeigen\r\n"
+      "AT+LOGRATE=<Hz>  Lograte: 0 (aus), 1, 2, 4, 5, 10\r\n"
       "AT+LOG           Sessions im Flash auflisten\r\n"
-      "AT+LOGDUMP[=<f>] Session als CSV ausgeben (ohne Name: neueste)\r\n"
-      "AT+LOGDEL=<f>    Session löschen (ALL = alle)\r\n"
+      "AT+LOGDUMP[=<s>] Session als CSV ausgeben (ohne Name: neueste)\r\n"
+      "AT+LOGDEL=<s>    Session löschen (ALL = alle)\r\n"
       "AT+SLEEP         Ausschalten (Aufwecken: Taste 1 s halten)\r\n"
       "ATZ              Neustart\r\n"
       "AT+FDR           Werkseinstellungen und Neustart\r\n"
@@ -202,6 +203,18 @@ void handle(char* cmd) {
       delay(10);
     }
     ok();
+  } else if (strcmp(cmd, "AT+LOGRATE") == 0) {
+    if (numericSetting("LOGRATE", val, query, settings.logHz, 0, 10, v)) {
+      if (v != 0 && v != 1 && v != 2 && v != 4 && v != 5 && v != 10) {
+        err("0, 1, 2, 4, 5 oder 10 Hz");
+        return;
+      }
+      settings.logHz = (uint8_t)v;
+      settings.save();
+      trackLog.setRate(settings.logHz);
+      if (settings.logHz > settings.gnssHz) Serial.printf("Hinweis: GNSS liefert nur %u Hz\r\n", settings.gnssHz);
+      ok();
+    }
   } else if (strcmp(cmd, "AT+LOG") == 0) {
     trackLog.list(Serial);
     ok();

@@ -40,6 +40,7 @@ constexpr uint32_t FREQ_HZ = 869525000UL;  // Mitte des Bands 869.40-869.65 MHz 
 constexpr uint8_t SF = 7;
 constexpr uint32_t BW_HZ = 250000UL;
 constexpr bool LEDS = true;
+constexpr uint8_t LOG_HZ = 5;              // Lograte: 0 (aus), 1, 2, 4, 5, 10
 }  // namespace defaults
 
 namespace timing {
