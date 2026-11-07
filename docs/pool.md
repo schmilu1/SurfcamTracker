@@ -1,6 +1,6 @@
 # Surf-Pool-Modus
 
-Ein iPhone filmt fest montiert und sendet einen Livestream an den Pi. Der Pi hält die letzten 150 s im Arbeitsspeicher. Auf Knopfdruck speichert er die letzten x Sekunden als MP4: im Test-GUI (Tab **Pool**) und später über die Taste am Tracker.
+Ein iPhone filmt fest montiert und sendet einen Livestream an den Pi. Der Pi hält die letzten 150 s im Arbeitsspeicher. Auf Knopfdruck speichert er die letzten x Sekunden als MP4: im Test-GUI (Tab **Pool**) oder mit einem kurzen Druck auf die Taste am Tracker (ab Firmware 0.5.0).
 
 ```
 iPhone (Moblin)                     Pi
@@ -8,13 +8,14 @@ iPhone (Moblin)                     Pi
                                  │
                                  ▼
                        1-s-Stücke im RAM (/dev/shm/surfcam-pool, 150 s)
-                                 │  Knopf: Tab Pool oder (später) Tracker-Taste
+                                 │  Knopf: Tab Pool oder Tracker-Taste (LoRa)
                                  ▼
                        ~/surfcam-data/clips/JJJJMMTT_hhmmss_30s.mp4
 ```
 
 - **Keine Neukodierung:** Der Pi kopiert das Video nur, das iPhone kodiert. Der Pi 5 hat keinen Hardware-Encoder. Ein 4K-Teststream, den der Pi selbst kodierte, lief mit 350 % CPU nicht in Echtzeit, das Kopieren braucht dagegen kaum Rechenzeit.
 - **Genauigkeit:** Ein Stück beginnt immer an einem Schlüsselbild. In der App den Schlüsselbild-Abstand auf **1 s** stellen, dann ist ein Clip auf ±1 s genau. Bei 2 s sind es ±2 s.
+- **Taste am Tracker:** Kurz drücken (unter 1 s). Der Tracker zählt die Drücke und sendet den Zähler in jedem Funkpaket mit. Der Pi merkt den Druck mit dem nächsten Paket, also nach etwa 0,1–0,3 s, auch wenn einzelne Pakete verloren gehen. Die Clip-Länge ist die im Tab Pool eingestellte. Mit **3 s** halten schaltet sich der Tracker weiterhin aus.
 - **Ende des Clips:** Gespeichert wird bis zum Knopfdruck. Der Pi wartet noch bis 4 s, bis das Stück mit dem Knopfdruck fertig ist. Das Speichern dauert danach etwa 1 s.
 - **Unterbruch:** Bricht der Stream ab, wartet der Pi automatisch auf den nächsten. Ein Clip enthält nur Video seit dem letzten Verbindungsaufbau.
 - **Speicher:** 4K HEVC mit 30 Mbit/s braucht etwa 3,75 MB/s, also 560 MB RAM für 150 s und 110 MB pro 30-s-Clip. Die Clips bleiben auf der SD-Karte, bis sie im GUI gelöscht werden.

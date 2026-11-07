@@ -13,7 +13,7 @@ import time
 
 TOPIC = "eu868/gateway/+/event/up"
 BANDS = {869525000: "A", 869850000: "B"}
-PACKET_SIZES = {1: 19, 2: 22}  # Paketversion -> Länge
+PACKET_SIZES = {1: 19, 2: 22, 3: 22}  # Paketversion -> Länge
 MHDR = 0xE0
 
 
@@ -82,7 +82,7 @@ def parse_uplink(raw):
 # ------------------------------------------------------------------ Rover-Paket
 
 def decode_rover(p):
-    """Rover-Paket (Version 1 oder 2) -> dict, sonst None."""
+    """Rover-Paket (Version 1, 2 oder 3) -> dict, sonst None."""
     if len(p) < 2 or p[0] != MHDR or PACKET_SIZES.get(p[1] >> 5) != len(p):
         return None
     w = int.from_bytes(p[3:7], "big")
@@ -104,8 +104,16 @@ def decode_rover(p):
         "motion_rms": None,
         "motion_peak": None,
         "tilt": None,
+        "button": None,   # Version 3: Tastenzähler 0..3 (kurze Drücke, Surf-Pool)
     }
-    if len(p) >= 22 and 255 not in (p[19], p[20], p[21]):
+    if d["version"] >= 3:
+        d["button"] = p[21] >> 6
+        tilt = p[21] & 0x3F
+        if 255 not in (p[19], p[20]) and tilt != 63:
+            d["motion_rms"] = round(p[19] * 0.05, 2)
+            d["motion_peak"] = round(p[20] * 0.1, 1)
+            d["tilt"] = tilt * 3
+    elif len(p) >= 22 and 255 not in (p[19], p[20], p[21]):
         d["motion_rms"] = round(p[19] * 0.05, 2)
         d["motion_peak"] = round(p[20] * 0.1, 1)
         d["tilt"] = p[21]

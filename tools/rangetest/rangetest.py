@@ -27,7 +27,7 @@ from datetime import datetime
 TOPIC = "eu868/gateway/+/event/up"
 CONTAINER = "surfcam-mosquitto-1"
 BANDS = {869525000: "A", 869850000: "B"}
-PACKET_SIZES = {1: 19, 2: 22}  # Paketversion -> Länge
+PACKET_SIZES = {1: 19, 2: 22, 3: 22}  # Paketversion -> Länge
 MHDR = 0xE0
 
 
@@ -102,6 +102,11 @@ def decode_rover(p):
     t = w & 0x7FFFFFF
     lat = int.from_bytes(p[7:11], "big", signed=True) / 1e7
     lon = int.from_bytes(p[11:15], "big", signed=True) / 1e7
+    v3 = (p[1] >> 5) >= 3  # Byte 21: Bits 7..6 Tastenzähler, Bits 5..0 Neigung in 3 Grad (63 = unbekannt)
+    if v3:
+        tilt = (p[21] & 0x3F) * 3 if (p[21] & 0x3F) != 63 else None
+    else:
+        tilt = p[21] if len(p) >= 22 and p[21] != 255 else None
     return {
         "id": p[1] & 0x1F,
         "seq": p[2],
@@ -117,7 +122,7 @@ def decode_rover(p):
         # Version 2: Bewegung (255 = kein Sensor)
         "motion_rms_g": p[19] * 0.05 if len(p) >= 22 and p[19] != 255 else None,
         "motion_peak_g": p[20] * 0.1 if len(p) >= 22 and p[20] != 255 else None,
-        "tilt_deg": p[21] if len(p) >= 22 and p[21] != 255 else None,
+        "tilt_deg": tilt,
     }
 
 

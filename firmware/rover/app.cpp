@@ -29,6 +29,7 @@ static uint32_t g_batteryLowSince = 0;
 static bool g_buttonDown = false;
 static bool g_ignoreUntilRelease = false;
 static uint32_t g_buttonSince = 0;
+static uint8_t g_buttonCount = 0;  // kurze Drücke, geht in jedes Paket (Surf-Pool: Clip speichern)
 
 // ---------------------------------------------------------------- LEDs
 
@@ -184,6 +185,8 @@ static void handleButton() {
     g_buttonDown = false;
     const uint32_t d = now - g_buttonSince;
     if (d >= 50 && d < 1000) {
+      g_buttonCount++;
+      Serial.printf("Taste: Clip (Zähler %u)\r\n", g_buttonCount & 0x03);
       printStatus(Serial);
       showBatteryLevel();
     }
@@ -249,6 +252,7 @@ static void maybeSend() {
   p.motionRmsMg = m.rmsMg;
   p.motionPeakMg = m.peakMg;
   p.tiltDeg = m.tiltDeg;
+  p.buttonCount = g_buttonCount;
 
   uint8_t buf[surfcam::kPacketSize];
   const size_t n = surfcam::encodePosition(p, buf, sizeof(buf));

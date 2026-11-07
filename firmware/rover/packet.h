@@ -2,7 +2,7 @@
 //
 // Aufbau (22 Bytes, Big Endian; 22 statt 23 Bytes, weil 20-22 Bytes gleich viele LoRa-Symbole brauchen):
 //   0      MHDR 0xE0 (LoRaWAN "Proprietary"; Netzwerkserver verwerfen solche Frames)
-//   1      Bits 7..5 Version (2), Bits 4..0 Geräte-ID (0..31)
+//   1      Bits 7..5 Version (3), Bits 4..0 Geräte-ID (0..31)
 //   2      Sequenznummer (0..255, läuft über)
 //   3..6   Bits 31..27 Akku-Stufe (0..31 -> 3000 + 40*n mV), Bits 26..0 Zeit des Fixes in ms seit UTC-Mitternacht
 //   7..10  Breite  int32, Grad * 1e7
@@ -13,8 +13,11 @@
 //   18     HDOP * 10 (max. 25.5)
 //   19     Bewegung: RMS der dynamischen Beschleunigung seit dem letzten Paket, 0.05 g (max. 12.7 g)
 //   20     Bewegung: Spitzenwert des Beschleunigungsbetrags seit dem letzten Paket, 0.1 g (max. 25.4 g)
-//   21     Neigung: Winkel zwischen Sensor-Z-Achse und Senkrechter, Grad (0 = flach, 180 = kopfüber)
-//          19..21: 255 = kein Bewegungssensor
+//   21     Bits 7..6 Tastenzähler (kurze Drücke, läuft über 3 -> 0; Surf-Pool: Clip speichern)
+//          Bits 5..0 Neigung: Winkel zwischen Sensor-Z-Achse und Senkrechter, 3 Grad (0 = flach,
+//          60 = 180 Grad kopfüber), 63 = unbekannt
+//          19..20: 255 und Neigung 63 = kein Bewegungssensor
+//   Version 2 (bis Firmware 0.4.x): Byte 21 = Neigung in Grad ohne Tastenzähler
 #pragma once
 
 #include <stddef.h>
@@ -23,9 +26,10 @@
 namespace surfcam {
 
 constexpr uint8_t kMhdrProprietary = 0xE0;
-constexpr uint8_t kPacketVersion = 2;
+constexpr uint8_t kPacketVersion = 3;
 constexpr size_t kPacketSize = 22;
 constexpr uint8_t kMotionUnknown = 255;
+constexpr uint8_t kTiltUnknown = 63;  // Byte 21, Bits 5..0
 constexpr uint32_t kMsPerDay = 86400000UL;
 
 enum FixType : uint8_t {
@@ -51,6 +55,7 @@ struct Position {
   uint16_t motionRmsMg = 0;   // RMS dynamische Beschleunigung, mg
   uint16_t motionPeakMg = 0;  // Spitzenwert Beschleunigungsbetrag, mg
   uint8_t tiltDeg = 0;        // 0..180
+  uint8_t buttonCount = 0;    // Zähler kurzer Tastendrücke, übertragen werden nur 2 Bits
 };
 
 // Kodiert p in out. Rückgabe: Anzahl Bytes (kPacketSize) oder 0, wenn out zu klein ist.

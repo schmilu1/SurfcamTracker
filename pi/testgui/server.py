@@ -45,7 +45,7 @@ HELP_DOCS = [
     ("pool", "Surf-Pool", "docs/pool.md"),
 ]
 RX_FIELDS = ["band", "id", "seq", "lost", "rssi", "snr", "fix", "sats", "hdop", "lat", "lon", "speed", "course",
-             "utc_ms", "battery_mv", "motion_rms", "motion_peak", "tilt"]
+             "utc_ms", "battery_mv", "motion_rms", "motion_peak", "tilt", "button"]
 # in main() gesetzt
 rx_log = None      # Aufzeichnung aller empfangenen Pakete
 relative = None    # position.Relative
@@ -96,6 +96,7 @@ class PacketStore:
         self.lock = threading.Lock()
         self.packets = deque(maxlen=maxlen)
         self.last = {}  # Geräte-ID -> (seq, rx_time)
+        self.button = {}  # Geräte-ID -> letzter Tastenzähler (Paket Version 3)
         self.mqtt = {"ok": False, "msg": "startet"}
         self.foreign = 0
 
@@ -118,7 +119,11 @@ class PacketStore:
                 lost = (p["seq"] - prev[0] - 1) % 256
                 if lost > 200 and now - prev[1] < 5:
                     lost = 0  # Rover neu gestartet (Sequenz beginnt bei 0)
+            restarted = False
+            if prev and lost == 0 and (p["seq"] - prev[0] - 1) % 256 > 200:
+                restarted = True
             self.last[p["id"]] = (p["seq"], now)
+            presses = self._button(p, prev, now, lost, restarted)
             p.update({"rx": now, "lost": lost, "freq": freq, "band": uplink.BANDS.get(freq, "?"),
                       "rssi": rssi, "snr": snr, "gateway": gw})
             self.packets.append(p)
@@ -128,6 +133,31 @@ class PacketStore:
                          [p.get(f) if p.get(f) is not None else "" for f in RX_FIELDS])
         if relative:
             relative.on_packet(p)
+        if presses:
+            self._on_button(p, presses)
+
+    def _button(self, p, prev, now, lost, restarted):
+        """Anzahl neuer kurzer Tastendrücke seit dem letzten Paket (Zähler 0..3 im Paket).
+        Nach Neustart des Trackers (Zähler wieder 0), langer Pause oder vielen verlorenen Paketen
+        wird nur neu synchronisiert, damit kein falscher Clip entsteht."""
+        b = p.get("button")
+        if b is None:
+            return 0
+        old = self.button.get(p["id"])
+        self.button[p["id"]] = b
+        if old is None or restarted or not prev or now - prev[1] > 10 or lost > 30:
+            return 0
+        return (b - old) % 4
+
+    def _on_button(self, p, presses):
+        src = "Taste Tracker %d" % p["id"]
+        print("[taste] Tracker %d: %d× gedrückt" % (p["id"], presses), flush=True)
+        if pool_mode:
+            ok, text = pool_mode.clip(source=src)
+            if not ok:
+                pool_mode.last = {"ok": False, "name": None, "source": src, "t": time.time(), "msg": text}
+                events.send("pool", pool_mode.info())
+        events.send("button", {"id": p["id"], "presses": presses})
 
     def recent(self, seconds=600, limit=3000):
         cutoff = time.time() - seconds
@@ -139,7 +169,7 @@ class PacketStore:
         with self.lock:
             rows = list(self.packets)
         fields = ["rx", "band", "freq", "id", "seq", "lost", "rssi", "snr", "fix", "sats", "hdop", "lat", "lon",
-                  "speed", "course", "utc_ms", "battery_mv", "motion_rms", "motion_peak", "tilt"]
+                  "speed", "course", "utc_ms", "battery_mv", "motion_rms", "motion_peak", "tilt", "button"]
         w = csv.writer(out)
         w.writerow(["rx_time"] + fields[1:])
         for p in rows:

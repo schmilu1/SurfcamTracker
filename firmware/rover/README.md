@@ -38,12 +38,12 @@ Der automatische Sendeabstand (`AT+TXINT=0`) ergibt sich aus Duty Cycle, Paketl�
 
 ## Paketformat (für den Empfänger)
 
-22 Bytes (Version 2), Big Endian. Das erste Byte ist der LoRaWAN-MHDR für „Proprietary“ (`0xE0`). ChirpStack verwirft solche Frames, der Pi-Dienst liest sie roh aus dem MQTT-Uplink des Gateway Bridge.
+22 Bytes (Version 3), Big Endian. Das erste Byte ist der LoRaWAN-MHDR für „Proprietary“ (`0xE0`). ChirpStack verwirft solche Frames, der Pi-Dienst liest sie roh aus dem MQTT-Uplink des Gateway Bridge.
 
 | Byte | Inhalt |
 |---|---|
 | 0 | `0xE0` |
-| 1 | Bits 7–5: Version (`2`; Version 1 = 19 Bytes ohne Bewegung, bis Firmware 0.3.0), Bits 4–0: Geräte-ID (0–31) |
+| 1 | Bits 7–5: Version (`3`; Version 2 = Byte 21 nur Neigung in Grad, bis Firmware 0.4.x; Version 1 = 19 Bytes ohne Bewegung, bis Firmware 0.3.0), Bits 4–0: Geräte-ID (0–31) |
 | 2 | Sequenznummer (0–255, läuft über) – Paketverluste erkennen |
 | 3–6 | Bits 31–27: Akku-Stufe *n* (0 = unbekannt/≤ 3000 mV, sonst 3000 + 40·*n* mV); Bits 26–0: Zeit des Fixes in ms seit UTC-Mitternacht (`0x7FFFFFF` = unbekannt) |
 | 7–10 | Breite, `int32`, Grad × 10⁷ |
@@ -54,9 +54,11 @@ Der automatische Sendeabstand (`AT+TXINT=0`) ergibt sich aus Duty Cycle, Paketl�
 | 18 | HDOP × 10 (max. 25,5) |
 | 19 | Bewegung: RMS der dynamischen Beschleunigung seit dem letzten Paket, 0,05 g (max. 12,7 g) |
 | 20 | Bewegung: Spitzenwert des Beschleunigungsbetrags seit dem letzten Paket, 0,1 g (max. 25,4 g) |
-| 21 | Neigung: Winkel zwischen Z-Achse des Sensors und Senkrechter, Grad (0 = flach, 180 = kopfüber) |
+| 21 | Bits 7–6: **Tastenzähler** (kurze Drücke, 0–3, läuft über). Bits 5–0: Neigung (Winkel zwischen Z-Achse des Sensors und Senkrechter) in 3°-Schritten (0 = flach, 60 = 180° kopfüber, `63` = unbekannt) |
 
-Bytes 19–21 sind `255`, wenn kein Bewegungssensor gefunden wurde.
+Bytes 19–20 sind `255` und die Neigung `63`, wenn kein Bewegungssensor gefunden wurde.
+
+**Tastenzähler:** Jeder kurze Tastendruck erhöht ihn. Er steht in jedem Paket, nicht nur in einem. Der Empfänger erkennt einen Druck an der Änderung, auch wenn einzelne Pakete verloren gehen. Der Pi speichert dann im [Surf-Pool-Modus](../../docs/pool.md) einen Clip. Nach einem Neustart beginnt der Zähler bei 0. Der Pi wertet das nicht als Druck (Sequenznummer springt zurück), ebenso wenig nach mehr als 10 s ohne Empfang oder mehr als 30 verlorenen Paketen.
 
 ### Bewegungssensor
 
@@ -79,7 +81,7 @@ Referenz-Implementierung: [packet.h](packet.h) / [packet.cpp](packet.cpp) (`enco
 | Akku anschliessen / Reset | startet sofort |
 | Taste **3 s** halten | Ausschalten: rote LED 1 s, dann Deep Sleep (GNSS aus, LoRa im Sleep) |
 | Taste **1 s** halten (im Sleep) | Einschalten (kürzeres Drücken weckt nur kurz und schläft wieder) |
-| Taste kurz drücken | Status auf USB, Akkustand als 1–4 grüne Blinker |
+| Taste kurz drücken | **Clip speichern** (Surf-Pool, über den Tastenzähler im Paket), Status auf USB, Akkustand als 1–4 grüne Blinker |
 
 Die Taste hängt je nach Board-Revision an **IO0** (ältere Geräte, gedrückt = LOW) oder an **IO25** (neuere Geräte, gedrückt = HIGH). Die Firmware liest beide und wacht über beide auf (ext0 bzw. ext1). Auf Board v1.2 ist IO25 der GNSS-Reset; er wird als Eingang mit Pulldown betrieben und bleibt so inaktiv. `AT+BTN` zeigt 10 s lang die Pegel beider Pins.
 
@@ -212,4 +214,4 @@ Loop ─► NMEA lesen ─► Epoche (RMC+GGA mit gleicher Zeit)
 - Stromverbrauch: grob geschätzt 50–70 mA im Betrieb (ESP32 bei 80 MHz, GNSS, LoRa mit 10 % Sendezeit). Laufzeit daher vor dem ersten Einsatz messen.
 - Akkuspannung: Teiler 100k/470k laut Schaltplan, nicht kalibriert.
 
-Die Firmware ist **noch nicht auf dem Gerät getestet**. Geprüft sind: Build mit `platformio/espressif32@8.0.0` (Arduino-ESP32 3.3.12) und RadioLib 7.8.1 ohne Warnungen (RAM 8,4 %, Flash 35,6 %) sowie die Unit-Tests (27/27). Beim Start vergleicht die Firmware ihre Sendezeit-Berechnung mit `getTimeOnAir()` von RadioLib und warnt bei mehr als 5 % Abweichung.
+Die Firmware ist **noch nicht auf dem Gerät getestet**. Geprüft sind: Build mit `platformio/espressif32@8.0.0` (Arduino-ESP32 3.3.12) und RadioLib 7.8.1 ohne Warnungen (RAM 8,4 %, Flash 35,6 %) sowie die Unit-Tests (Stand 0.5.0: 30/30). Beim Start vergleicht die Firmware ihre Sendezeit-Berechnung mit `getTimeOnAir()` von RadioLib und warnt bei mehr als 5 % Abweichung.

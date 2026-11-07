@@ -33,7 +33,7 @@ void test_size_and_header() {
   TEST_ASSERT_EQUAL(kPacketSize, encodePosition(sample(), buf, sizeof(buf)));
   TEST_ASSERT_EQUAL(22, kPacketSize);
   TEST_ASSERT_EQUAL_HEX8(0xE0, buf[0]);
-  TEST_ASSERT_EQUAL_HEX8((2 << 5) | 7, buf[1]);
+  TEST_ASSERT_EQUAL_HEX8((3 << 5) | 7, buf[1]);
   TEST_ASSERT_EQUAL_UINT8(200, buf[2]);
 }
 
@@ -61,7 +61,8 @@ void test_roundtrip() {
   TEST_ASSERT_TRUE(d.motion);
   TEST_ASSERT_UINT16_WITHIN(25, 1234, d.motionRmsMg);  // 0.05 g Auflösung
   TEST_ASSERT_UINT16_WITHIN(50, 5678, d.motionPeakMg); // 0.1 g Auflösung
-  TEST_ASSERT_EQUAL_UINT8(97, d.tiltDeg);
+  TEST_ASSERT_UINT8_WITHIN(1, 97, d.tiltDeg);       // 3 Grad Auflösung
+  TEST_ASSERT_EQUAL_UINT8(0, d.buttonCount);
 }
 
 void test_motion_unknown_and_clamped() {
@@ -71,10 +72,17 @@ void test_motion_unknown_and_clamped() {
   encodePosition(p, buf, sizeof(buf));
   TEST_ASSERT_EQUAL_HEX8(0xFF, buf[19]);
   TEST_ASSERT_EQUAL_HEX8(0xFF, buf[20]);
-  TEST_ASSERT_EQUAL_HEX8(0xFF, buf[21]);
+  TEST_ASSERT_EQUAL_HEX8(kTiltUnknown, buf[21]);
   Position d;
   TEST_ASSERT_TRUE(decodePosition(buf, sizeof(buf), d));
   TEST_ASSERT_FALSE(d.motion);
+  p.buttonCount = 2;  // Tastenzähler auch ohne Bewegungssensor
+  encodePosition(p, buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_HEX8((2 << 6) | kTiltUnknown, buf[21]);
+  TEST_ASSERT_TRUE(decodePosition(buf, sizeof(buf), d));
+  TEST_ASSERT_FALSE(d.motion);
+  TEST_ASSERT_EQUAL_UINT8(2, d.buttonCount);
+  p.buttonCount = 0;
   p.motion = true;
   p.motionRmsMg = 60000;
   p.motionPeakMg = 60000;
@@ -82,7 +90,32 @@ void test_motion_unknown_and_clamped() {
   encodePosition(p, buf, sizeof(buf));
   TEST_ASSERT_EQUAL_UINT8(254, buf[19]);  // 255 bleibt für "unbekannt" reserviert
   TEST_ASSERT_EQUAL_UINT8(254, buf[20]);
-  TEST_ASSERT_EQUAL_UINT8(180, buf[21]);
+  TEST_ASSERT_EQUAL_UINT8(60, buf[21]);   // 180 Grad / 3
+}
+
+void test_button_counter() {
+  Position p = sample();
+  uint8_t buf[kPacketSize];
+  Position d;
+  for (uint8_t n = 0; n < 9; n++) {
+    p.buttonCount = n;  // läuft über: nur 2 Bits
+    encodePosition(p, buf, sizeof(buf));
+    TEST_ASSERT_TRUE(decodePosition(buf, sizeof(buf), d));
+    TEST_ASSERT_EQUAL_UINT8(n & 0x03, d.buttonCount);
+    TEST_ASSERT_UINT8_WITHIN(1, 97, d.tiltDeg);  // Neigung nicht beeinflusst
+  }
+  p.tiltDeg = 0;
+  p.buttonCount = 3;
+  encodePosition(p, buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_HEX8(0xC0, buf[21]);
+}
+
+void test_version2_rejected() {
+  uint8_t buf[kPacketSize];
+  encodePosition(sample(), buf, sizeof(buf));
+  buf[1] = (uint8_t)((2 << 5) | 7);
+  Position d;
+  TEST_ASSERT_FALSE(decodePosition(buf, sizeof(buf), d));
 }
 
 void test_limits_are_clamped() {
@@ -181,6 +214,8 @@ int main(int, char**) {
   RUN_TEST(test_motion_unknown_and_clamped);
   RUN_TEST(test_limits_are_clamped);
   RUN_TEST(test_low_battery_and_unknown_time);
+  RUN_TEST(test_button_counter);
+  RUN_TEST(test_version2_rejected);
   RUN_TEST(test_decode_rejects_invalid);
   RUN_TEST(test_fix_type_from_gga);
   RUN_TEST(test_airtime);

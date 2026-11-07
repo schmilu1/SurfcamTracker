@@ -37,7 +37,7 @@ Gateway Bridge ─MQTT─► server.py ◄─USB (AT-Befehle, AT+JSON)─ Tracke
 | [position.py](position.py) | GPS des Pi (HAT, `/dev/ttyAMA0`) lesen und wie den Tracker einstellen, Aufzeichnung, Kamerastandort, Differenzkorrektur |
 | [moblin.py](moblin.py) | Surf-Pool: Fernsteuerung der iPhone-App Moblin (WebSocket-Server, Port 2345) |
 | [pool.py](pool.py) | Surf-Pool: ffmpeg als SRT-Empfänger, Ringpuffer im RAM, Clips als MP4 |
-| [uplink.py](uplink.py) | MQTT-Client (nur Abonnieren), Protobuf-Leser, Decoder für Rover-Pakete Version 1 und 2 |
+| [uplink.py](uplink.py) | MQTT-Client (nur Abonnieren), Protobuf-Leser, Decoder für Rover-Pakete Version 1 bis 3 (Version 3: Tastenzähler → Clip im Pool-Modus) |
 | [static/index.html](static/index.html) | Weboberfläche (ohne Build, Leaflet für die Karte) |
 | [surfcam-testgui.service](surfcam-testgui.service) | systemd-Dienst |
 | [sudoers-surfcam-testgui](sudoers-surfcam-testgui) | erlaubt `systemctl restart lora-pkt-fwd` ohne Passwort (für die Band-Umschaltung) |
