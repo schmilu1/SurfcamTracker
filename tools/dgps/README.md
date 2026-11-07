@@ -51,4 +51,18 @@ Das Test-GUI schreibt nach `~/surfcam-data/` (eine Datei pro Start und UTC-Tag, 
 | `rx/` | jedes empfangene Tracker-Paket: `rx_utc` + Felder des Pakets |
 | `position.json` | Mittelwert des Pi-GPS und Kamerastandort (bleiben über Neustarts erhalten) |
 
-Synthetisch geprüft (gemeinsamer Fehler bis ≈ 2 m, eigenes Rauschen 0,3 m pro Empfänger): 95 % roh 3,4 m, korrigiert 1,0 m. Mit echten Daten steht der Test noch aus.
+Synthetisch geprüft (gemeinsamer Fehler bis ≈ 2 m, eigenes Rauschen 0,3 m pro Empfänger): 95 % roh 3,4 m, korrigiert 1,0 m.
+
+## Ergebnis Nullbasis-Test 06./07.11.2026
+
+Tracker und HAT-Antenne nebeneinander auf dem Fenstersims (halber Himmel, Hauswand), 8,8 h, 99 000 Tracker-Pakete (3,3/s), Pi-GPS 1 Hz.
+
+| | 95 % (Kalibrierung erste 60 s) | 95 % (Kalibrierung alle Daten) | Streuung | Streuung innerhalb 1 min |
+|---|---|---|---|---|
+| roh | 33,2 m | 18,0 m | 9,5 m | 0,2 m |
+| korrigiert | 22,2 m | 10,4 m | 5,5 m | 0,2 m |
+
+- Beide Empfänger wandern langsam (über Stunden) um bis zu 30 m, fast nur Ost–West. Kurzfristig sind beide ruhig (0,2 m).
+- Die Fehler hängen zusammen (Korrelation Ost 0,87, Nord 0,67): Die Korrektur halbiert die Streuung ungefähr, entfernt die Wanderung aber nicht ganz.
+- Die Empfänger sehen nicht dieselben Satelliten (Tracker im Mittel 16, Pi 20; gleiche Zahl nur in 4 % der Zeit). Das begrenzt die Korrektur.
+- Am Fenster dominieren vermutlich Reflexionen an der Hauswand. Aussagekräftig für den Einsatz ist erst ein Test mit freier Sicht (Strand, Wiese).
