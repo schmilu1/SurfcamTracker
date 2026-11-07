@@ -369,7 +369,9 @@ class MoblinRemote(threading.Thread):
     # ---------------------------------------------------------------- Status
 
     def setup_link(self, ip):
+        # "assistant" mitgeben (aus): ältere Moblin-Versionen verlangen das Feld eventuell
         cfg = {"remoteControl": {"password": self.password,
+                                 "assistant": {"enabled": False, "port": self.port},
                                  "streamer": {"enabled": True, "url": "ws://%s:%d" % (ip, self.port)}}}
         return "moblin://?" + quote(json.dumps(cfg, separators=(",", ":")), safe="")
 
