@@ -27,6 +27,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import serial
 
+import moblin
 import pool
 import position
 import uplink
@@ -442,6 +443,16 @@ class Handler(BaseHTTPRequestHandler):
                 if not fp:
                     return self._error("nicht gefunden", 404)
                 return self._file_range(fp, "video/mp4", m.group(1), "dl" in parse_qs(url.query))
+            if path == "/api/pool/phone/preview":
+                data, ctype = pool_mode.phone.preview_image() if pool_mode and pool_mode.phone else (None, None)
+                if not data:
+                    return self._error("kein Vorschaubild", 404)
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return self.wfile.write(data)
             if path == "/api/help":
                 docs = []
                 for doc_id, title, rel in HELP_DOCS:
@@ -498,6 +509,11 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/pool/settings":
                 pool_mode.set_clip_seconds(int(body.get("clip_seconds", 0)))
                 return self._json({"ok": True})
+            if path == "/api/pool/phone":
+                if not pool_mode.phone:
+                    return self._error("Fernsteuerung ausgeschaltet (--moblin-port 0)", 409)
+                ok, text = pool_mode.phone.action(str(body.get("action", "")), body.get("value"))
+                return self._json({"ok": ok, "error": text} if not ok else {"ok": True})
             if path == "/api/pool/delete":
                 pool_mode.delete(str(body.get("name", "")))
                 return self._json({"ok": True})
@@ -641,6 +657,8 @@ def main():
                     help="Rate in Hz (Standard 1; mit 10 Hz hing das HAT-Modul im Test)")
     ap.add_argument("--pool-port", type=int, default=8890,
                     help="Surf-Pool: UDP-Port für den SRT-Stream vom iPhone (Standard 8890, 0 = aus)")
+    ap.add_argument("--moblin-port", type=int, default=2345,
+                    help="Surf-Pool: TCP-Port für die Fernsteuerung der iPhone-App Moblin (Standard 2345, 0 = aus)")
     args = ap.parse_args()
 
     global rx_log, relative, pi_gnss, pi_log, pool_mode
@@ -656,6 +674,10 @@ def main():
     if args.pool_port:
         pool_mode = pool.Pool(os.path.join(args.data, "clips"), port=args.pool_port,
                               on_change=lambda info: events.send("pool", info))
+        if args.moblin_port:
+            pool_mode.phone = moblin.MoblinRemote(os.path.join(args.data, "moblin.json"), port=args.moblin_port,
+                                                  on_change=lambda info: events.send("pool", pool_mode.info()))
+            pool_mode.phone.start()
         pool_mode.start()
     uplink.MqttSubscriber(args.mqtt, args.mqtt_port, uplink.TOPIC, packets.on_message, packets.on_status).start()
     tracker = Tracker(args.tracker)

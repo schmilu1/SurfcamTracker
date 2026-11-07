@@ -47,6 +47,7 @@ class Pool(threading.Thread):
         self.last = None       # Ergebnis des letzten Clips
         self.settings_path = os.path.join(clip_dir, "pool.json")
         self.clip_seconds = 30
+        self.phone = None      # moblin.MoblinRemote (Fernsteuerung), in server.py gesetzt
         os.makedirs(clip_dir, exist_ok=True)
         try:
             with open(self.settings_path) as f:
@@ -236,10 +237,12 @@ class Pool(threading.Thread):
         state = self.state
         if state == "empfängt" and segs and now - segs[-1][1] > 4:
             state = "Stream stockt"
-        return {"state": state, "video": self.video, "audio": self.audio, "since": self.connected_since,
+        addr = addresses()
+        return {"phone": self.phone.info(addr) if self.phone else None,
+                "state": state, "video": self.video, "audio": self.audio, "since": self.connected_since,
                 "buffer_s": round(buf), "mbps": round(rate, 1) if rate else None, "port": self.port,
                 "clip_seconds": self.clip_seconds, "clip_choices": CLIP_SECONDS, "busy": self.busy,
-                "last": self.last, "addresses": addresses(), "log": list(self.log)[-8:]}
+                "last": self.last, "addresses": addr, "log": list(self.log)[-8:]}
 
 
 def addresses():

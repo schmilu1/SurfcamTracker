@@ -65,6 +65,10 @@ button.b:disabled { opacity: .5; cursor: default; }
 .clip .n { flex: 1 1 100%; font-variant-numeric: tabular-nums; }
 a.b { display: inline-block; text-decoration: none; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line);
   background: var(--bg); color: var(--text); font-size: 14px; }
+#phPrev { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #000; border-radius: 8px; display: block; margin-bottom: 8px; }
+button.b.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+input[type=range] { padding: 0; }
+details summary { cursor: pointer; color: var(--muted); font-size: 14px; margin-top: 10px; }
 #poolPlayer { width: 100%; max-height: 60vh; background: #000; border-radius: 8px; margin-top: 8px; }
 button.b:disabled { opacity: .5; cursor: default; }
 a.b { text-decoration: none; display: inline-block; color: var(--text); }
@@ -169,6 +173,21 @@ nav { overflow-x: auto; }
       <select id="poolLen" style="width:auto"></select></div>
     <div class="hint">Gilt auch für die Taste am Tracker (sobald die Firmware das kann). Der Clip beginnt an einem Schlüsselbild, deshalb ± 1 s.</div>
     <div class="msg" id="poolMsg"></div>
+  </div>
+  <div class="card">
+    <h2>iPhone fernsteuern (Moblin)</h2>
+    <div class="hint" id="phMsg" style="margin:0 0 6px">…</div>
+    <div class="btns" style="margin-top:0"><button class="b primary" id="phConnect">Verbinden</button><button class="b" id="phDisconnect">Trennen</button></div>
+    <div id="phBody" hidden style="margin-top:10px">
+      <img id="phPrev" alt="Vorschau vom iPhone">
+      <div class="grid" id="phStat"></div>
+      <label style="margin-top:10px">Zoom <b id="phZoomV">–</b>
+        <input type="range" id="phZoom" min="0.5" max="10" step="0.1" value="1"></label>
+      <div class="btns" id="phPresets"></div>
+      <div class="btns" id="phToggles"></div>
+      <div class="msg" id="phRes"></div>
+    </div>
+    <details id="phSetup"><summary>Einrichten in Moblin (einmalig)</summary><div class="hint" id="phSetupBody"></div></details>
   </div>
   <div class="card">
     <h2>Stream vom iPhone</h2>
@@ -794,6 +813,7 @@ async function loadPool() {
 function renderPool() {
   const r = poolInfo;
   if (!r) return;
+  renderPhone(r.phone);
   const kv = (k, v, sub = "") => `<div class="kv"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
   const live = r.state === "empfängt";
   $("#poolStat").innerHTML =
@@ -823,6 +843,59 @@ function renderPool() {
         <button class="b danger" data-del="${c.name}">Löschen</button></div>`).join("") : "noch keine Clips";
   }
 }
+const PH_TOGGLES = [["live", "Stream"], ["record", "Aufnahme iPhone"], ["mute", "Ton aus"], ["torch", "Licht"], ["stealth", "Stealth-Modus"]];
+let phPrevT = null, phZoomBusy = false;
+function renderPhone(ph) {
+  if (!ph) { $("#phMsg").textContent = "Fernsteuerung ausgeschaltet (--moblin-port 0)"; $("#phConnect").disabled = $("#phDisconnect").disabled = true; return; }
+  const kv = (k, v, sub = "") => `<div class="kv"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  $("#phMsg").innerHTML = ph.connected ? `<span style="color:var(--ok)">verbunden</span> mit ${esc(ph.peer)} seit ${new Date(ph.since * 1000).toLocaleTimeString()}`
+    : ph.enabled ? esc(ph.msg || "wartet auf das iPhone") + ` · Pi empfängt auf Port ${ph.port}. In Moblin muss Remote control → Streamer eingeschaltet sein, das iPhone meldet sich innert ≈ 10 s.`
+    : "aus · «Verbinden» drücken";
+  $("#phConnect").hidden = ph.enabled; $("#phDisconnect").hidden = !ph.enabled;
+  $("#phBody").hidden = !ph.connected;
+  if (ph.connected) {
+    const flame = { White: ["normal", "var(--ok)"], Yellow: ["warm", "var(--warn)"], Red: ["heiss!", "var(--bad)"] }[ph.flame] || ["–", ""];
+    $("#phStat").innerHTML =
+      kv("Akku", ph.battery != null ? ph.battery + " %" : "–", ph.charging ? "lädt" : (ph.charging === false ? "lädt nicht" : "")) +
+      kv("Temperatur", `<span style="color:${flame[1]}">${flame[0]}</span>`, "") +
+      kv("Kamera", esc(ph.camera || "–"), ph.zoom_text ? "Zoom " + esc(ph.zoom_text) : "");
+    if (!phZoomBusy && ph.zoom != null && document.activeElement !== $("#phZoom")) { $("#phZoom").value = ph.zoom; }
+    $("#phZoomV").textContent = ph.zoom != null ? (+ph.zoom).toFixed(1) + "×" : "–";
+    $("#phPresets").innerHTML = ph.zoom_presets.map(z => `<button class="b ${z.id === ph.zoom_preset ? "on" : ""}" data-zp="${esc(z.id)}">${esc(z.name)}</button>`).join("");
+    $("#phToggles").innerHTML = PH_TOGGLES.map(([k, n]) => `<button class="b ${ph[k] ? "on" : ""}" data-tg="${k}" data-v="${ph[k] ? 0 : 1}">${n} ${ph[k] ? "an" : "aus"}</button>`).join("");
+    if (ph.preview_t && ph.preview_t !== phPrevT) { phPrevT = ph.preview_t; $("#phPrev").src = "/api/pool/phone/preview?t=" + ph.preview_t; }
+    $("#phPrev").hidden = !ph.preview_t;
+  }
+  $("#phSetupBody").innerHTML = `<ol style="padding-left:18px;margin:6px 0">
+    <li>In Moblin: <i>Einstellungen → Remote control</i>. <b>Passwort</b>: <code>${esc(ph.password)}</code></li>
+    <li><i>Streamer</i>: «Enabled» ein, <b>Assistant-URL</b> eintragen (je nach Netz):<br>${ph.setup.map(a => `${esc(a.kind)}: <code>${esc(a.url)}</code>`).join("<br>")}</li>
+    <li>Oder: diese Seite in Safari <b>auf dem Kamera-iPhone</b> öffnen und einen Link antippen. Moblin übernimmt Passwort und Adresse nach einer Rückfrage (nicht während Stream läuft):<br>
+      ${ph.setup.map(a => `<a href="${a.link}">Moblin einrichten (${esc(a.kind)})</a>`).join(" · ")}</li></ol>
+    Ohne Anmeldung: Wer das GUI sieht, sieht auch das Passwort.`;
+}
+async function phAction(action, value) {
+  const r = await api("/api/pool/phone", { action, value });
+  msg($("#phRes"), r.ok ? "" : (r.error || "Fehler"), r.ok);
+  loadPool();
+}
+$("#phConnect").onclick = () => phAction("connect");
+$("#phDisconnect").onclick = () => phAction("disconnect");
+let phZoomTimer = null;
+$("#phZoom").addEventListener("input", () => {
+  $("#phZoomV").textContent = (+$("#phZoom").value).toFixed(1) + "×";
+  phZoomBusy = true;
+  clearTimeout(phZoomTimer);
+  phZoomTimer = setTimeout(async () => { await phAction("zoom", +$("#phZoom").value); phZoomBusy = false; }, 250);
+});
+$("#phBody").addEventListener("click", e => {
+  const zp = e.target.closest("[data-zp]"), tg = e.target.closest("[data-tg]");
+  if (zp) phAction("zoom_preset", zp.dataset.zp);
+  if (tg) {
+    const on = tg.dataset.v === "1";
+    if (tg.dataset.tg === "live" && !on && !confirm("Stream stoppen? Danach landet nichts mehr im Puffer, Clips sind nicht mehr möglich.")) return;
+    phAction(tg.dataset.tg, on);
+  }
+});
 function clipLabel(n) {
   const m = n.match(/^(\d{4})(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)_(\d+)s/);
   return m ? `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}:${m[6]} · ${m[7]} s` : esc(n);
