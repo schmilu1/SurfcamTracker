@@ -825,7 +825,6 @@ function clipLabel(n) {
   const m = n.match(/^(\d{4})(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)_(\d+)s/);
   return m ? `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}:${m[6]} · ${m[7]} s` : esc(n);
 }
-function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
 $("#poolLen").onchange = async () => {
   await api("/api/pool/settings", { clip_seconds: +$("#poolLen").value });
   loadPool();
