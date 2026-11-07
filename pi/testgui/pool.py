@@ -23,6 +23,7 @@ CLIP_RE = re.compile(r"^\d{8}_\d{6}_\d{1,3}s(?:_\d+)?\.mp4$")
 CLIP_SECONDS = (10, 15, 20, 30, 45, 60, 90, 120)
 KEEP_S = 150          # so lange bleiben Stücke im RAM (längster Clip 120 s + Reserve)
 WAIT_AFTER_S = 4.0    # so lange auf das Stück warten, das den Knopfdruck enthält
+STREAM_LAG_S = 1.0    # Bild kommt so viel später an (Kodierung im iPhone + SRT-Latenz 0,5 s)
 
 
 class Pool(threading.Thread):
@@ -156,9 +157,10 @@ class Pool(threading.Thread):
     def _make_clip(self, t_press, seconds, source):
         try:
             run = self.run_no
-            deadline = time.time() + WAIT_AFTER_S
+            t_end = t_press + STREAM_LAG_S  # Empfangszeit des Bildes vom Moment des Knopfdrucks
+            deadline = time.time() + STREAM_LAG_S + WAIT_AFTER_S
             segs = self._segments(run)
-            while not any(e >= t_press for _, e, _ in segs) and time.time() < deadline:
+            while not any(e >= t_end for _, e, _ in segs) and time.time() < deadline:
                 time.sleep(0.2)
                 segs = self._segments(run)
             pick = []
@@ -166,7 +168,7 @@ class Pool(threading.Thread):
             for p, end, _ in segs:
                 start = prev_end if prev_end is not None else end - 1
                 prev_end = end
-                if end > t_press - seconds and start < t_press:
+                if end > t_end - seconds and start < t_end:
                     pick.append(p)
             if not pick:
                 raise RuntimeError("keine passenden Stücke im Puffer")
