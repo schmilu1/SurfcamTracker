@@ -802,7 +802,7 @@ function renderPool() {
     kv("Datenrate", r.mbps ? r.mbps.toFixed(1) + " Mbit/s" : "–", "") +
     kv("Puffer", r.buffer_s ? r.buffer_s + " s" : "–", "max. 150 s, im RAM");
   const ad = (r.addresses || []).map(a => `<div>${esc(a.kind)}: <code>srt://${esc(a.ip)}:${r.port}</code></div>`).join("");
-  $("#poolAddr").innerHTML = (ad ? "<div style='margin-top:6px'>Ziel in Larix Broadcaster (SRT, Modus Caller):</div>" + ad : "") +
+  $("#poolAddr").innerHTML = (ad ? "<div style='margin-top:6px'>Ziel-Adresse in Moblin (Stream, Protokoll SRT):</div>" + ad : "") +
     "<div style='margin-top:4px'>Einrichtung siehe Hilfe → Surf-Pool.</div>";
   const sel = $("#poolLen");
   if (r.clip_choices && !sel.options.length)

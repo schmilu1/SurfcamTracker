@@ -1,10 +1,10 @@
 """Surf-Pool-Modus: Videostream vom iPhone puffern, auf Knopfdruck die letzten x Sekunden als MP4 speichern.
 
-  iPhone (Larix Broadcaster) --SRT--> ffmpeg (Listener, ohne Neukodierung)
+  iPhone (Moblin oder Larix) --SRT--> ffmpeg (Listener, ohne Neukodierung)
       --> 1-s-Stücke (MPEG-TS) im RAM (/dev/shm)  --Knopf-->  Stücke aneinanderhängen --> MP4
 
 Der Pi kodiert nichts neu (der Pi 5 hat keinen H.264-Encoder), er kopiert nur. Ein Stück endet an
-einem Schlüsselbild, deshalb ist ein Clip auf etwa 1 s genau (Schlüsselbild-Abstand in Larix: 1 s).
+einem Schlüsselbild, deshalb ist ein Clip auf etwa 1 s genau (Schlüsselbild-Abstand in der App: 1 s).
 Das Ende eines Stücks ist die Änderungszeit seiner Datei (= Zeitpunkt des Empfangs).
 """
 
