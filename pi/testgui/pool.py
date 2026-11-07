@@ -238,11 +238,12 @@ class Pool(threading.Thread):
         if state == "empfängt" and segs and now - segs[-1][1] > 4:
             state = "Stream stockt"
         addr = addresses()
-        return {"phone": self.phone.info(addr) if self.phone else None,
+        ap = [a for a in addr if a["if"] == "uap0"]  # iPhone immer über den Hotspot des Pi
+        return {"phone": self.phone.info(ap) if self.phone else None,
                 "state": state, "video": self.video, "audio": self.audio, "since": self.connected_since,
                 "buffer_s": round(buf), "mbps": round(rate, 1) if rate else None, "port": self.port,
                 "clip_seconds": self.clip_seconds, "clip_choices": CLIP_SECONDS, "busy": self.busy,
-                "last": self.last, "addresses": addr, "log": list(self.log)[-8:]}
+                "last": self.last, "addresses": ap, "log": list(self.log)[-8:]}
 
 
 def addresses():

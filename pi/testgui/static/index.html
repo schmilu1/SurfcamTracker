@@ -821,8 +821,9 @@ function renderPool() {
     kv("Video", r.video ? esc(r.video.split(" ")[1] || r.video) : "–", r.video ? esc(r.video.split(" ")[0] + (r.video.split(" ").slice(2).length ? " · " + r.video.split(" ").slice(2).join(" ") : "") + (r.audio ? " · Ton " + r.audio : "")) : "") +
     kv("Datenrate", r.mbps ? r.mbps.toFixed(1) + " Mbit/s" : "–", "") +
     kv("Puffer", r.buffer_s ? r.buffer_s + " s" : "–", "max. 150 s, im RAM");
-  const ad = (r.addresses || []).map(a => `<div>${esc(a.kind)}: <code>srt://${esc(a.ip)}:${r.port}</code></div>`).join("");
-  $("#poolAddr").innerHTML = (ad ? "<div style='margin-top:6px'>Ziel-Adresse in Moblin (Stream, Protokoll SRT):</div>" + ad : "") +
+  const ad = (r.addresses || []).map(a => `<code>srt://${esc(a.ip)}:${r.port}</code>`).join(" ");
+  $("#poolAddr").innerHTML = (ad ? `<div style='margin-top:6px'>iPhone mit dem WLAN-Hotspot des Pi verbinden. Ziel in Moblin (Protokoll SRT): ${ad}</div>`
+      : `<div style='margin-top:6px;color:var(--bad)'>Hotspot des Pi ist nicht aktiv (siehe Hilfe → Hotspot).</div>`) +
     "<div style='margin-top:4px'>Einrichtung siehe Hilfe → Surf-Pool.</div>";
   const sel = $("#poolLen");
   if (r.clip_choices && !sel.options.length)
@@ -868,9 +869,9 @@ function renderPhone(ph) {
   }
   $("#phSetupBody").innerHTML = `<ol style="padding-left:18px;margin:6px 0">
     <li>In Moblin: <i>Einstellungen → Remote control</i>. <b>Passwort</b>: <code>${esc(ph.password)}</code></li>
-    <li><i>Streamer</i>: «Enabled» ein, <b>Assistant-URL</b> eintragen (je nach Netz):<br>${ph.setup.map(a => `${esc(a.kind)}: <code>${esc(a.url)}</code>`).join("<br>")}</li>
+    <li><i>Streamer</i>: «Enabled» ein, <b>Assistant-URL</b>: ${ph.setup.map(a => `<code>${esc(a.url)}</code>`).join(" ") || "<span style='color:var(--bad)'>Hotspot nicht aktiv</span>"}</li>
     <li>Oder: diese Seite in Safari <b>auf dem Kamera-iPhone</b> öffnen und einen Link antippen. Moblin übernimmt Passwort und Adresse nach einer Rückfrage (nicht während Stream läuft):<br>
-      ${ph.setup.map(a => `<a href="${a.link}">Moblin einrichten (${esc(a.kind)})</a>`).join(" · ")}</li></ol>
+      ${ph.setup.map(a => `<a href="${a.link}">Moblin einrichten</a>`).join(" · ")}</li></ol>
     Ohne Anmeldung: Wer das GUI sieht, sieht auch das Passwort.`;
 }
 async function phAction(action, value) {
