@@ -4,7 +4,7 @@
 # Der WLAN-Chip des Pi 5 kann Client und Hotspot gleichzeitig, aber nur auf demselben Kanal.
 # Dieses Skript läuft alle 30 s (surfcam-ap.timer) und
 #   1. legt die virtuelle Schnittstelle uap0 an, falls sie fehlt,
-#   2. stellt den Hotspot auf den Kanal des Client-WLANs, ohne Client-WLAN auf 2,4 GHz Kanal 6,
+#   2. stellt den Hotspot auf den Kanal des Client-WLANs, ohne Client-WLAN auf 5 GHz Kanal 36,
 #   3. nimmt den Hotspot kurz vom Netz, wenn ein bekanntes WLAN in Reichweite ist, der Client
 #      sich aber nicht verbindet (anderer Kanal), damit der Client sich anmelden kann.
 set -u
@@ -12,7 +12,8 @@ set -u
 CON=surfcam-hotspot
 AP=uap0
 STA=wlan0
-FALLBACK_CH=6           # ohne Client-WLAN: 2,4 GHz (5 GHz Kanal 36-64 in der EU nur drinnen)
+FALLBACK_CH=36          # ohne Client-WLAN: 5 GHz für den 4K-Stream (Kanal 36-48: in CH/EU nur in Gebäuden
+                        # erlaubt, im Freien 2,4 GHz: 6)
 BOUNCE_EVERY=300        # s, höchstens so oft den Hotspot für den Client pausieren
 STATE=/run/surfcam-ap.bounce
 IW=/usr/sbin/iw
@@ -85,8 +86,8 @@ if [ -n "$freq" ]; then
     fi
   fi
 else
-  band=bg
   ch=$FALLBACK_CH
+  if [ "$ch" -gt 14 ]; then band=a; else band=bg; fi
 fi
 
 # Der Chip nimmt den Hotspot bei einem Kanalwechsel des Clients mit, die Einstellung in

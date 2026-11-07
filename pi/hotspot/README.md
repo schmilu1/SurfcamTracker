@@ -12,7 +12,7 @@ Der Pi bleibt in deinem WLAN (zum Konfigurieren per SSH) und bietet gleichzeitig
 Der WLAN-Chip des Pi 5 kann einen Client und einen Hotspot gleichzeitig betreiben, aber nur auf **einem** Kanal. Neben `wlan0` (Client) gibt es deshalb die virtuelle Schnittstelle `uap0` (Hotspot). `surfcam-ap.sh` läuft alle 30 s (`surfcam-ap.timer`) und
 
 - legt `uap0` an, falls sie fehlt (z. B. nach einem Neustart),
-- stellt den Hotspot auf den Kanal des Client-WLANs; ohne Client-WLAN auf 2,4 GHz Kanal 6 (5 GHz Kanal 36–64 ist in der EU nur drinnen erlaubt),
+- stellt den Hotspot auf den Kanal des Client-WLANs; ohne Client-WLAN auf **5 GHz Kanal 36** (für den 4K-Stream des [Surf-Pool-Modus](../../docs/pool.md); Kanal 36–48 ist in der Schweiz und der EU nur in Gebäuden erlaubt, für den Betrieb im Freien `FALLBACK_CH=6` in `surfcam-ap.sh` setzen und mit `sudo install -m 755 pi/hotspot/surfcam-ap.sh /usr/local/sbin/surfcam-ap` übernehmen),
 - pausiert den Hotspot höchstens alle 5 min für 20 s, wenn ein bekanntes WLAN in Reichweite ist, der Client sich aber nicht verbindet.
 
 Der Hotspot vergibt Adressen per DHCP (NetworkManager, `ipv4.method shared`). Ist der Pi zusätzlich in deinem WLAN, leitet er den Internetzugang weiter, sonst hat das Handy im Hotspot kein Internet (nur der Kartenhintergrund im GUI fehlt dann, Leaflet liegt lokal im GUI). Weil Docker die FORWARD-Kette auf DROP setzt, trägt `surfcam-ap.sh` zwei Regeln in `DOCKER-USER` ein (nur Hotspot ↔ `wlan0`).

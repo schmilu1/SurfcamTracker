@@ -68,7 +68,7 @@ Moblin aus dem App Store laden (iOS 16.4 oder neuer). Die Menünamen stammen aus
 | Anzeige | Ursache |
 |---|---|
 | Moblin verbindet nicht, Tab Pool bleibt bei «wartet auf Stream» | falsche IP, oder iPhone und Pi sind nicht im selben Netz. Protokoll SRT statt SRTLA? |
-| «Stream stockt», Datenrate schwankt stark | WLAN zu langsam: Bitrate auf 20 oder 15 Mbit/s senken. Hotspot auf 2,4 GHz (ohne Heim-WLAN)? Siehe unten |
+| «Stream stockt», Datenrate schwankt stark | WLAN zu langsam: Bitrate auf 20 oder 15 Mbit/s senken. Hotspot auf 2,4 GHz (Heim-WLAN auf 2,4 GHz)? Siehe unten |
 | Video im Tab Pool zeigt `h264` | Codec in Moblin steht noch auf H.264. Das geht auch, braucht aber etwa 50 Mbit/s für 4K |
 | Clip deutlich kürzer als eingestellt | Stream wurde innerhalb der Clip-Länge neu verbunden. Ein Clip enthält nur Video seit dem letzten Verbindungsaufbau |
 | iPhone wird heiss, Bildrate fällt | 4K-Kodierung über lange Zeit: Hülle weg, Schatten, 30 statt 60 fps |
@@ -117,11 +117,11 @@ Der Stream läuft **immer über den WLAN-Hotspot des Pi** (`192.168.4.1`). Das G
 
 | Lage | Hotspot-Kanal | Bitrate in Moblin |
 |---|---|---|
-| Pi zusätzlich im Heim-WLAN (z. B. zuhause, Kanal 36) | gleicher Kanal wie das Heim-WLAN, hier 5 GHz | 30 Mbit/s |
-| Ohne Heim-WLAN (z. B. im Pool) | 2,4 GHz Kanal 6 | **20 Mbit/s**, bei Aussetzern 15 Mbit/s |
+| Pi zusätzlich im Heim-WLAN (z. B. zuhause, Kanal 36) | gleicher Kanal wie das Heim-WLAN (5 GHz, bei einem 2,4-GHz-Heim-WLAN aber 2,4 GHz: dann 20 Mbit/s) | 30 Mbit/s |
+| Ohne Heim-WLAN (z. B. im Pool) | 5 GHz Kanal 36 | 30 Mbit/s |
 | Heim-WLAN auf einem DFS-Kanal (52–144) | Hotspot aus | geht nicht. Pi aus dem Heim-WLAN nehmen oder den Router auf Kanal 36–48 stellen |
 
-Warum nicht immer 5 GHz: Die Kanäle 36–48 sind in der Schweiz und der EU nur **in Gebäuden** erlaubt. Im Freien wären es DFS-Kanäle, die der Hotspot des Pi nicht beherrscht. Für eine Halle liesse sich der Rückfallkanal auf 36 umstellen (`FALLBACK_CH` in [surfcam-ap.sh](../pi/hotspot/surfcam-ap.sh)).
+Hinweis: Die Kanäle 36–48 sind in der Schweiz und der EU nur **in Gebäuden** erlaubt. Im Freien wären es DFS-Kanäle, die der Hotspot des Pi nicht beherrscht. Für den Betrieb im Freien den Rückfallkanal auf 2,4 GHz zurückstellen (`FALLBACK_CH=6` in [surfcam-ap.sh](../pi/hotspot/surfcam-ap.sh), dann `sudo install -m 755 pi/hotspot/surfcam-ap.sh /usr/local/sbin/surfcam-ap`) und in Moblin 20 Mbit/s wählen.
 
 Weitere Wege, die der Pi auch annimmt, aber nicht im GUI angezeigt werden: USB-Kabel mit dem «Persönlichen Hotspot» des iPhones (Adresse 172.20.10.x, nicht getestet) und ein WLAN vor Ort.
 
