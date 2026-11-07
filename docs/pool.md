@@ -109,7 +109,7 @@ Im Tab Pool, Karte **iPhone fernsteuern**, steuert der Pi die App Moblin. In Mob
 
 Sicherheit: Das Passwort liegt nur auf dem Pi (`~/surfcam-data/moblin.json`, Rechte 600), nicht im Repo. Das GUI hat keine Anmeldung. Wer es öffnen kann, sieht auch das Passwort.
 
-Getestet mit einem nachgebauten Moblin-Client: Anmeldung, falsches Passwort, Ping, Zoom, Stealth-Modus, Licht, Status und Vorschau. Mit dem echten Moblin noch nicht getestet. Grundlage ist der Quellcode von Moblin (`Moblin/RemoteControl/RemoteControl.swift`, API-Version 0.1).
+Mit dem echten Moblin über den Hotspot getestet (07.11.2026): Anmeldung über den Einrichtungs-Link, Zoom-Stufen 0,5×/1×/2×, Akku, Temperatur, Kamera und Vorschaubild (JPEG, ca. 6 kB) kommen an. Davor mit einem nachgebauten Client: falsches Passwort, Ping, Zoom, Stealth-Modus, Licht. Grundlage ist der Quellcode von Moblin (`Moblin/RemoteControl/RemoteControl.swift`, API-Version 0.1).
 
 ## Verbindung iPhone – Pi
 
