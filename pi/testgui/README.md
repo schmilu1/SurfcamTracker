@@ -6,7 +6,7 @@ Webserver auf dem Pi zum Testen: zeigt die Funkpakete des Rovers live an und ste
 
 | Tab | Inhalt |
 |---|---|
-| Pool | [Surf-Pool-Modus](../../docs/pool.md): Status des Streams vom iPhone (Auflösung, Datenrate, Puffer), Ziel-Adressen für die Streaming-App (Moblin), Knopf «Letzte x s speichern», Clip-Länge 10–120 s, Clips ansehen, herunterladen, löschen |
+| Pool | [Surf-Pool-Modus](../../docs/pool.md): Status des Streams vom iPhone (Auflösung, Datenrate, Puffer), Ziel-Adressen für die Streaming-App (Moblin), Knopf «Letzte x s speichern», Clip-Länge 10–120 s, iPhone fernsteuern (Zoom, Stream, Licht, Stealth-Modus, Akku, Vorschau), Clips ansehen, herunterladen, löschen |
 | Position | Tracker relativ zur Kamera (Entfernung, Richtung) roh und mit dem Pi-GPS korrigiert, Kamerastandort festlegen (Tracker neben den Pi legen), Vergleich roh/korrigiert mit Streudiagramm, Status und Mittelwert des Pi-GPS, Aufzeichnungen herunterladen. Siehe [DGPS-Test](../../tools/dgps/README.md) |
 | Live | letztes Paket (Geschwindigkeit, Fix, Bewegung, RSSI/SNR, Pakete/s, Verlust, Akku), Karte mit Spur der letzten 5 min, Verläufe der letzten 2 min, empfangene Pakete als CSV |
 | Tracker | nur mit USB: Status; Einstellungen als Formular (mehrere Werte auf einmal, Funkband inkl. Gateway); **Befehle**: jeder AT-Befehl als Button, mit Eingabefeld und Hinweis wo ein Wert nötig ist, „Abfragen“ zeigt den aktuellen Wert, Felder sind mit den aktuellen Werten vorbelegt, Sessions zum Herunterladen/Löschen als Auswahl; Konsole mit der vollständigen Ausgabe (eigener Befehl nur noch aufklappbar) |
@@ -35,6 +35,7 @@ Gateway Bridge ─MQTT─► server.py ◄─USB (AT-Befehle, AT+JSON)─ Tracke
 |---|---|
 | [server.py](server.py) | HTTP-Server, Tracker-Verbindung (pyserial), Status alle 2 s per `AT+JSON` |
 | [position.py](position.py) | GPS des Pi (HAT, `/dev/ttyAMA0`) lesen und wie den Tracker einstellen, Aufzeichnung, Kamerastandort, Differenzkorrektur |
+| [moblin.py](moblin.py) | Surf-Pool: Fernsteuerung der iPhone-App Moblin (WebSocket-Server, Port 2345) |
 | [pool.py](pool.py) | Surf-Pool: ffmpeg als SRT-Empfänger, Ringpuffer im RAM, Clips als MP4 |
 | [uplink.py](uplink.py) | MQTT-Client (nur Abonnieren), Protobuf-Leser, Decoder für Rover-Pakete Version 1 und 2 |
 | [static/index.html](static/index.html) | Weboberfläche (ohne Build, Leaflet für die Karte) |

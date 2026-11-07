@@ -83,6 +83,34 @@ Nur sinnvoll mit Premium, oder gratis mit H.264 und Neustart alle 30 min.
 2. *Einstellungen → Video:* 3840×2160, 30 fps, Codec HEVC (Premium) oder H.264 (gratis, ca. 40–50 Mbit/s), Keyframe-Intervall 1 s.
 3. Roter Knopf zum Starten.
 
+## iPhone fernsteuern (Moblin Remote control)
+
+Im Tab Pool, Karte **iPhone fernsteuern**, steuert der Pi die App Moblin. In Moblin heisst das «Remote control». Der Pi spielt dabei das Gerät «Assistant», das iPhone ist der «Streamer».
+
+| Möglich | Nicht möglich (Moblin bietet es nicht an) |
+|---|---|
+| Zoom stufenlos und Zoom-Stufen (z. B. 0,5× Weitwinkel, 1×, 3×), Stream starten/stoppen, Aufnahme auf dem iPhone, stumm, Licht, Stealth-Modus. Anzeige von Akku, «lädt», Temperatur (normal/warm/heiss) und Kamera. Vorschaubild etwa 1 pro Sekunde | Fokus, Belichtung, ISO, Weissabgleich (bleiben auf Automatik), Auflösung und Bildrate (in Moblin selbst einstellen) |
+
+**Einmal einrichten:**
+
+1. Im GUI, Tab Pool, Karte «iPhone fernsteuern», **Verbinden** drücken. Der Pi wartet jetzt auf TCP-Port 2345.
+2. «Einrichten in Moblin» aufklappen. Dort stehen das **Passwort** und die **Assistant-URL**, z. B. `ws://192.168.4.1:2345` im Hotspot.
+3. Entweder in Moblin von Hand: *Einstellungen → Remote control*:
+   - Passwort eintragen.
+   - Unter *Streamer* «Enabled» einschalten und die Assistant-URL eintragen.
+4. Oder schneller: das GUI in Safari **auf dem Kamera-iPhone** öffnen und den Link «Moblin einrichten (…)» antippen. Moblin fragt nach und übernimmt Passwort und URL. Das geht nicht, während Moblin streamt oder aufnimmt.
+
+**Im Betrieb:**
+- «Verbinden» schaltet den Empfang am Pi ein. Moblin versucht laufend, sich zu verbinden, höchstens alle 10 s, und meldet sich deshalb nach spätestens etwa 10 s.
+- «Trennen» schaltet den Empfang ab. Die Einstellung bleibt nach einem Neustart des Pi erhalten.
+- Nach einem **falschen Passwort** versucht Moblin es nicht mehr. Dann in Moblin das Passwort korrigieren oder Remote control aus- und wieder einschalten.
+- Ein **gestoppter Stream** füllt den Puffer nicht mehr. Deshalb fragt das GUI vor dem Stoppen nach.
+- **Stealth-Modus:** Moblin macht das Display schwarz und streamt weiter. Das spart Akku und hält das iPhone kühler.
+
+Sicherheit: Das Passwort liegt nur auf dem Pi (`~/surfcam-data/moblin.json`, Rechte 600), nicht im Repo. Das GUI hat keine Anmeldung. Wer es öffnen kann, sieht auch das Passwort.
+
+Getestet mit einem nachgebauten Moblin-Client: Anmeldung, falsches Passwort, Ping, Zoom, Stealth-Modus, Licht, Status und Vorschau. Mit dem echten Moblin noch nicht getestet. Grundlage ist der Quellcode von Moblin (`Moblin/RemoteControl/RemoteControl.swift`, API-Version 0.1).
+
 ## Verbindung iPhone – Pi
 
 | Weg | Datenrate | Bemerkung |
@@ -105,5 +133,6 @@ ffmpeg -re -i /tmp/test.ts -c copy -f mpegts 'srt://127.0.0.1:8890?pkt_size=1316
 
 - [pi/testgui/pool.py](../pi/testgui/pool.py): ffmpeg als SRT-Listener (`-f segment -segment_time 1`, MPEG-TS). Clips mit dem `concat:`-Protokoll von ffmpeg nach MP4 (`-c copy -movflags +faststart`, HEVC mit `hvc1`-Tag für Apple).
 - Die Endzeit eines Stücks ist die Änderungszeit seiner Datei, also der Zeitpunkt des Empfangs. Das Bild kommt etwa 1 s nach der Aufnahme an (Kodierung im iPhone, SRT-Latenz 0,5 s). Der Clip reicht deshalb bis 1 s nach dem Knopfdruck (`STREAM_LAG_S` in `pool.py`), damit der Moment des Knopfdrucks sicher drin ist.
-- Server-Option `--pool-port` (Standard 8890, `0` = aus).
-- API: `GET /api/pool`, `POST /api/pool/clip {seconds}`, `POST /api/pool/settings {clip_seconds}`, `POST /api/pool/delete {name}`, `GET /api/pool/clips/<name>` (mit HTTP-Range, `?dl=1` zum Herunterladen).
+- Server-Optionen `--pool-port` (Standard 8890, `0` = aus) und `--moblin-port` (Fernsteuerung, Standard 2345, `0` = aus).
+- [pi/testgui/moblin.py](../pi/testgui/moblin.py): kleiner WebSocket-Server (nur Standardbibliothek) und das Remote-control-Protokoll von Moblin.
+- API: `GET /api/pool`, `POST /api/pool/clip {seconds}`, `POST /api/pool/settings {clip_seconds}`, `POST /api/pool/delete {name}`, `GET /api/pool/clips/<name>` (mit HTTP-Range, `?dl=1` zum Herunterladen), `POST /api/pool/phone {action: connect|disconnect|zoom|zoom_preset|live|record|mute|torch|stealth, value}`, `GET /api/pool/phone/preview`.

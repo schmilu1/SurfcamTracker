@@ -843,7 +843,7 @@ function renderPool() {
         <button class="b danger" data-del="${c.name}">Löschen</button></div>`).join("") : "noch keine Clips";
   }
 }
-const PH_TOGGLES = [["live", "Stream"], ["record", "Aufnahme iPhone"], ["mute", "Ton aus"], ["torch", "Licht"], ["stealth", "Stealth-Modus"]];
+const PH_TOGGLES = [["live", "Stream"], ["record", "Aufnahme iPhone"], ["mute", "Stumm"], ["torch", "Licht"], ["stealth", "Stealth-Modus"]];
 let phPrevT = null, phZoomBusy = false;
 function renderPhone(ph) {
   if (!ph) { $("#phMsg").textContent = "Fernsteuerung ausgeschaltet (--moblin-port 0)"; $("#phConnect").disabled = $("#phDisconnect").disabled = true; return; }
