@@ -59,6 +59,11 @@ button.b { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line);
   color: var(--text); font-size: 14px; cursor: pointer; }
 button.b.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 button.b.danger { color: var(--bad); }
+button.b.big { font-size: 20px; padding: 16px 22px; width: 100%; font-weight: 600; }
+button.b:disabled { opacity: .5; cursor: default; }
+.clip { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.clip .n { flex: 1 1 200px; font-variant-numeric: tabular-nums; }
+#poolPlayer { width: 100%; max-height: 60vh; background: #000; border-radius: 8px; margin-top: 8px; }
 button.b:disabled { opacity: .5; cursor: default; }
 a.b { text-decoration: none; display: inline-block; color: var(--text); }
 pre#console { background: #0d1117; color: #c9d1d9; border-radius: 8px; padding: 8px; height: 260px; overflow: auto;
@@ -115,6 +120,7 @@ nav { overflow-x: auto; }
   </div>
   <nav>
     <button data-tab="live" class="active">Live</button>
+    <button data-tab="pool">Pool</button>
     <button data-tab="position">Position</button>
     <button data-tab="tracker">Tracker</button>
     <button data-tab="log">Log</button>
@@ -150,6 +156,27 @@ nav { overflow-x: auto; }
       <div class="chart"><div class="t"><span>RSSI dBm</span><span id="cRssiV"></span></div><canvas id="cRssi"></canvas></div>
     </div>
     <div class="btns"><a class="b" href="/api/packets.csv">Empfangene Pakete als CSV</a></div>
+  </div>
+</section>
+
+<section id="pool">
+  <div class="card">
+    <h2>Clip speichern</h2>
+    <button class="b primary big" id="poolClip">Letzte 30 s speichern</button>
+    <div class="row" style="align-items:center"><span class="hint" style="margin:0;white-space:nowrap">Länge</span>
+      <select id="poolLen" style="width:auto"></select></div>
+    <div class="hint">Gilt auch für die Taste am Tracker (sobald die Firmware das kann). Der Clip beginnt an einem Schlüsselbild, deshalb ± 1 s.</div>
+    <div class="msg" id="poolMsg"></div>
+  </div>
+  <div class="card">
+    <h2>Stream vom iPhone</h2>
+    <div class="grid" id="poolStat"></div>
+    <div class="hint" id="poolAddr"></div>
+  </div>
+  <div class="card">
+    <h2>Clips</h2>
+    <div id="poolClips" class="hint">…</div>
+    <video id="poolPlayer" controls playsinline hidden></video>
   </div>
 </section>
 
@@ -310,6 +337,7 @@ $$("nav button").forEach(b => b.onclick = () => {
   if (b.dataset.tab === "log") loadLogs();
   if (b.dataset.tab === "help") loadHelp();
   if (b.dataset.tab === "position") { loadPosition(); loadFiles(); }
+  if (b.dataset.tab === "pool") loadPool();
   try { localStorage.setItem("tab", b.dataset.tab); } catch (e) {}
 });
 
@@ -754,6 +782,78 @@ $("#pBaseReset").onclick = async () => {
 };
 setInterval(() => { if ($("#position").classList.contains("active") && !hash.has("nosse")) loadPosition(); }, 1000);
 
+// ---------------------------------------------------------------- Surf-Pool
+let poolInfo = null, poolLastT = null;
+async function loadPool() {
+  const r = await api("/api/pool");
+  poolInfo = r;
+  renderPool();
+}
+function renderPool() {
+  const r = poolInfo;
+  if (!r) return;
+  const kv = (k, v, sub = "") => `<div class="kv"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  const live = r.state === "empfängt";
+  $("#poolStat").innerHTML =
+    kv("Status", live ? "empfängt" : esc(r.state || "–"), r.since ? "seit " + new Date(r.since * 1000).toLocaleTimeString() : "") +
+    kv("Video", r.video ? esc(r.video.split(" ")[1] || r.video) : "–", r.video ? esc(r.video.split(" ")[0] + (r.video.split(" ").slice(2).length ? " · " + r.video.split(" ").slice(2).join(" ") : "") + (r.audio ? " · Ton " + r.audio : "")) : "") +
+    kv("Datenrate", r.mbps ? r.mbps.toFixed(1) + " Mbit/s" : "–", "") +
+    kv("Puffer", r.buffer_s ? r.buffer_s + " s" : "–", "max. 150 s, im RAM");
+  const ad = (r.addresses || []).map(a => `<div>${esc(a.kind)}: <code>srt://${esc(a.ip)}:${r.port}</code></div>`).join("");
+  $("#poolAddr").innerHTML = (ad ? "<div style='margin-top:6px'>Ziel in Larix Broadcaster (SRT, Modus Caller):</div>" + ad : "") +
+    "<div style='margin-top:4px'>Einrichtung siehe Hilfe → Surf-Pool.</div>";
+  const sel = $("#poolLen");
+  if (r.clip_choices && !sel.options.length)
+    sel.innerHTML = r.clip_choices.map(s => `<option value="${s}">${s} s</option>`).join("");
+  if (r.clip_seconds && document.activeElement !== sel) sel.value = r.clip_seconds;
+  const btn = $("#poolClip");
+  btn.textContent = r.busy ? "wird gespeichert …" : `Letzte ${sel.value} s speichern`;
+  btn.disabled = !!r.busy || !r.buffer_s;
+  if (r.last && r.last.t !== poolLastT) {
+    poolLastT = r.last.t;
+    msg($("#poolMsg"), (r.last.source !== "GUI" ? r.last.source + ": " : "") + r.last.msg, r.last.ok);
+  }
+  if (r.clips) {
+    $("#poolClips").innerHTML = r.clips.length ? r.clips.slice(0, 50).map(c =>
+      `<div class="clip"><span class="n">${clipLabel(c.name)} · ${(c.bytes / 1e6).toFixed(0)} MB</span>
+        <button class="b" data-play="${c.name}">Ansehen</button>
+        <a class="b" href="/api/pool/clips/${c.name}?dl=1" download>Herunterladen</a>
+        <button class="b danger" data-del="${c.name}">Löschen</button></div>`).join("") : "noch keine Clips";
+  }
+}
+function clipLabel(n) {
+  const m = n.match(/^(\d{4})(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)_(\d+)s/);
+  return m ? `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}:${m[6]} · ${m[7]} s` : esc(n);
+}
+function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
+$("#poolLen").onchange = async () => {
+  await api("/api/pool/settings", { clip_seconds: +$("#poolLen").value });
+  loadPool();
+};
+$("#poolClip").onclick = async () => {
+  $("#poolClip").disabled = true;
+  const r = await api("/api/pool/clip", { seconds: +$("#poolLen").value });
+  msg($("#poolMsg"), r.msg || r.error || "", r.ok);
+  loadPool();
+};
+$("#poolClips").addEventListener("click", async e => {
+  const play = e.target.closest("[data-play]"), del = e.target.closest("[data-del]");
+  if (play) {
+    const v = $("#poolPlayer");
+    v.hidden = false; v.src = "/api/pool/clips/" + play.dataset.play; v.play().catch(() => {});
+    v.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  if (del) {
+    if (!confirm("Clip löschen?\n" + clipLabel(del.dataset.del))) return;
+    const v = $("#poolPlayer");
+    if (v.src.endsWith(del.dataset.del)) { v.pause(); v.removeAttribute("src"); v.hidden = true; }
+    const r = await api("/api/pool/delete", { name: del.dataset.del });
+    if (!r.ok) msg($("#poolMsg"), r.error, false);
+    loadPool();
+  }
+});
+setInterval(() => { if ($("#pool").classList.contains("active")) loadPool(); }, 2000);
+
 // ---------------------------------------------------------------- Hilfe (README-Dateien aus dem Repo)
 const GITHUB = "https://github.com/schmilu1/SurfcamTracker/blob/main/";
 let helpDocs = null, helpCur = null;
@@ -911,6 +1011,14 @@ function connect() {
     if (t.connected && !was) loadLogs();
   });
   es.addEventListener("console", e => addConsole(JSON.parse(e.data)));
+  es.addEventListener("pool", e => {
+    if (!$("#pool").classList.contains("active")) return;
+    const clips = poolInfo && poolInfo.clips;
+    poolInfo = Object.assign(JSON.parse(e.data), { clips });
+    const newClip = poolInfo.last && poolInfo.last.t !== poolLastT;
+    renderPool();
+    if (newClip) loadPool();  // Liste neu laden
+  });
   es.addEventListener("mqtt", e => { state.mqtt = JSON.parse(e.data); renderMqtt(); });
   es.addEventListener("gateway", e => { state.gateway = JSON.parse(e.data); renderGateway(); });
   es.addEventListener("logdump", e => {

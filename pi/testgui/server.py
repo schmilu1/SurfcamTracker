@@ -27,6 +27,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import serial
 
+import pool
 import position
 import uplink
 
@@ -40,6 +41,7 @@ HELP_DOCS = [
     ("tracker", "Tracker-Firmware", "firmware/rover/README.md"),
     ("gateway", "Gateway", "docs/gateway.md"),
     ("dgps", "DGPS-Test", "tools/dgps/README.md"),
+    ("pool", "Surf-Pool", "docs/pool.md"),
 ]
 RX_FIELDS = ["band", "id", "seq", "lost", "rssi", "snr", "fix", "sats", "hdop", "lat", "lon", "speed", "course",
              "utc_ms", "battery_mv", "motion_rms", "motion_peak", "tilt"]
@@ -48,6 +50,7 @@ rx_log = None      # Aufzeichnung aller empfangenen Pakete
 relative = None    # position.Relative
 pi_gnss = None     # position.PiGnss
 pi_log = None      # Aufzeichnung des Pi-GNSS
+pool_mode = None   # pool.Pool (Video-Puffer)
 DATA_KINDS = ("rx", "pi_gnss")
 DEFAULT_BAND_SH = os.path.expanduser("~/sx1302_hal_rpi5-master/surfcam/band.sh")
 SESSION_RE = re.compile(r"^(\d{6}_\d{6})\s+(\d+) Segmente\s+(\d+) Bytes\s+(\d+) Positionen(\s+\(aktiv\))?")
@@ -429,6 +432,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            if path == "/api/pool":
+                if not pool_mode:
+                    return self._json({"state": "ausgeschaltet (--pool-port 0)", "clips": []})
+                return self._json(dict(pool_mode.info(), clips=pool_mode.clips()))
+            m = re.match(r"^/api/pool/clips/([A-Za-z0-9_]+\.mp4)$", path)
+            if m:
+                fp = pool_mode.clip_path(m.group(1)) if pool_mode else None
+                if not fp:
+                    return self._error("nicht gefunden", 404)
+                return self._file_range(fp, "video/mp4", m.group(1), "dl" in parse_qs(url.query))
             if path == "/api/help":
                 docs = []
                 for doc_id, title, rel in HELP_DOCS:
@@ -477,6 +490,17 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/position/reset_base":
                 relative.reset_base()
                 return self._json({"ok": True})
+            if path.startswith("/api/pool/") and not pool_mode:
+                return self._error("Pool-Modus ausgeschaltet", 409)
+            if path == "/api/pool/clip":
+                ok, text = pool_mode.clip(int(body["seconds"]) if body.get("seconds") else None, "GUI")
+                return self._json({"ok": ok, "msg": text})
+            if path == "/api/pool/settings":
+                pool_mode.set_clip_seconds(int(body.get("clip_seconds", 0)))
+                return self._json({"ok": True})
+            if path == "/api/pool/delete":
+                pool_mode.delete(str(body.get("name", "")))
+                return self._json({"ok": True})
             if path == "/api/tracker/status":
                 return self._json({"ok": True, "status": tracker.refresh_status()})
             if path == "/api/tracker/cmd":
@@ -519,6 +543,42 @@ class Handler(BaseHTTPRequestHandler):
             return self._error(str(e), 409)
         except (ValueError, json.JSONDecodeError) as e:
             return self._error("ungültige Anfrage: %s" % e)
+
+    def _file_range(self, fp, ctype, name, download):
+        """Datei in Stücken senden, mit HTTP-Range (Safari spielt Videos nur so ab)."""
+        size = os.path.getsize(fp)
+        start, end = 0, size - 1
+        m = re.match(r"bytes=(\d*)-(\d*)$", self.headers.get("Range") or "")
+        if m and (m.group(1) or m.group(2)):
+            if m.group(1):
+                start = int(m.group(1))
+                end = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+            else:
+                start = max(0, size - int(m.group(2)))
+            if start > end:
+                self.send_response(416)
+                self.send_header("Content-Range", "bytes */%d" % size)
+                self.end_headers()
+                return
+            self.send_response(206)
+            self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+        else:
+            self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(end - start + 1))
+        if download:
+            self.send_header("Content-Disposition", 'attachment; filename="%s"' % name)
+        self.end_headers()
+        with open(fp, "rb") as f:
+            f.seek(start)
+            left = end - start + 1
+            while left > 0:
+                chunk = f.read(min(1 << 20, left))
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                left -= len(chunk)
 
     def _sse(self):
         self.send_response(200)
@@ -579,9 +639,11 @@ def main():
     ap.add_argument("--pi-gnss", default="/dev/ttyAMA0", help="GNSS des HAT (Standard /dev/ttyAMA0), 'aus' = nicht lesen")
     ap.add_argument("--pi-gnss-rate", type=int, default=1, choices=(1, 2, 5, 10),
                     help="Rate in Hz (Standard 1; mit 10 Hz hing das HAT-Modul im Test)")
+    ap.add_argument("--pool-port", type=int, default=8890,
+                    help="Surf-Pool: UDP-Port für den SRT-Stream vom iPhone (Standard 8890, 0 = aus)")
     args = ap.parse_args()
 
-    global rx_log, relative, pi_gnss, pi_log
+    global rx_log, relative, pi_gnss, pi_log, pool_mode
     Handler.band_sh = args.band_sh
     Handler.data_dir = args.data
     rx_log = position.DailyCsv(os.path.join(args.data, "rx"), ["rx_utc"] + RX_FIELDS)
@@ -591,6 +653,10 @@ def main():
                                    ["date", "utc", "time_ms", "lat", "lon", "alt", "fix", "sats", "hdop"])
         pi_gnss = position.PiGnss(args.pi_gnss, args.pi_gnss_rate, relative.on_pi_fix, pi_log)
         pi_gnss.start()
+    if args.pool_port:
+        pool_mode = pool.Pool(os.path.join(args.data, "clips"), port=args.pool_port,
+                              on_change=lambda info: events.send("pool", info))
+        pool_mode.start()
     uplink.MqttSubscriber(args.mqtt, args.mqtt_port, uplink.TOPIC, packets.on_message, packets.on_status).start()
     tracker = Tracker(args.tracker)
     tracker.start()
