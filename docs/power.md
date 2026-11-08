@@ -41,7 +41,7 @@ Der Pi 5 hat einen Power-Management-Chip (PMIC). Er misst Strom und Spannung sei
 
 | Zustand | Pi gemessen | Gesamt geschätzt | CPU |
 |---|---|---|---|
-| Leerlauf (Gateway, GUI, kein Stream), 08.11.2026 | 2,1 W | ca. 3,1 W | < 2 % |
+| Leerlauf (Gateway, GUI, kein Stream), 08.11.2026 | 2,0 W | 2,8–3,1 W (Lüfter aus/an) | < 2 % |
 
 ## API
 
