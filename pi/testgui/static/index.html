@@ -131,6 +131,7 @@ nav { overflow-x: auto; }
     <button data-tab="tracker">Tracker</button>
     <button data-tab="log">Log</button>
     <button data-tab="gateway">Gateway</button>
+    <button data-tab="power">Strom</button>
     <button data-tab="help">Hilfe</button>
   </nav>
 </header>
@@ -334,6 +335,40 @@ nav { overflow-x: auto; }
   </div>
 </section>
 
+<section id="power">
+  <div class="card">
+    <h2>Stromverbrauch Pi</h2>
+    <div class="notice" id="pwWarn" hidden></div>
+    <div class="grid" id="pwStat"></div>
+    <div class="hint" id="pwNote"></div>
+  </div>
+  <div class="card">
+    <h2>Verlauf</h2>
+    <div class="row" style="align-items:center;margin-top:0"><span class="hint" style="margin:0">Zeitraum</span>
+      <select id="pwWin" style="width:auto"><option value="300">5 min</option><option value="900">15 min</option><option value="3600" selected>1 h</option></select></div>
+    <div class="charts" style="margin-top:8px">
+      <div class="chart"><div class="t"><span>Leistung W (gesamt geschätzt / Pi gemessen)</span><span id="pwCW"></span></div><canvas id="pwChartW"></canvas></div>
+      <div class="chart"><div class="t"><span>CPU-Last %</span><span id="pwCC"></span></div><canvas id="pwChartC"></canvas></div>
+      <div class="chart"><div class="t"><span>Temperatur °C</span><span id="pwCT"></span></div><canvas id="pwChartT"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Laufzeit mit Powerbank</h2>
+    <div class="row" style="align-items:center;margin-top:0"><span class="hint" style="margin:0;white-space:nowrap">Kapazität mAh</span>
+      <input id="pwBank" type="number" min="1000" step="1000" value="20000" style="width:120px"></div>
+    <div class="hint">Angabe auf der Powerbank (bei 3,7 V), davon nutzbar etwa 85 %.</div>
+    <div class="grid" id="pwRun" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <h2>Aufteilung</h2>
+    <table id="pwRails"></table>
+  </div>
+  <div class="card">
+    <h2>Prozesse (CPU)</h2>
+    <table id="pwProcs"></table>
+  </div>
+</section>
+
 <section id="help">
   <div class="card">
     <div class="btns" id="helpNav" style="margin-top:0"></div>
@@ -359,6 +394,7 @@ $$("nav button").forEach(b => b.onclick = () => {
   if (b.dataset.tab === "help") loadHelp();
   if (b.dataset.tab === "position") { loadPosition(); loadFiles(); }
   if (b.dataset.tab === "pool") loadPool();
+  if (b.dataset.tab === "power") loadPower();
   try { localStorage.setItem("tab", b.dataset.tab); } catch (e) {}
 });
 
@@ -802,6 +838,107 @@ $("#pBaseReset").onclick = async () => {
   await api("/api/position/reset_base", {}); loadPosition();
 };
 setInterval(() => { if ($("#position").classList.contains("active") && !hash.has("nosse")) loadPosition(); }, 1000);
+
+// ---------------------------------------------------------------- Stromverbrauch
+const pw = { hist: [], last: 0, info: null };
+async function loadPower() {
+  const r = await api("/api/power?since=" + pw.last);
+  if (!r || r.ok === false) return;
+  pw.info = r;
+  for (const h of r.history || []) pw.hist.push(h);
+  if (pw.hist.length) pw.last = pw.hist[pw.hist.length - 1][0];
+  const cut = Date.now() / 1000 - (r.history_s || 3600);
+  while (pw.hist.length && pw.hist[0][0] < cut) pw.hist.shift();
+  renderPower();
+}
+function lineChart(id, series, win, dec, floor, minSpan) {
+  const c = $("#" + id), dpr = window.devicePixelRatio || 1;
+  const W = c.clientWidth, H = c.clientHeight;
+  if (!W) return;
+  if (c.width !== W * dpr) { c.width = W * dpr; c.height = H * dpr; }
+  const g = c.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const now = Date.now() / 1000, css = getComputedStyle(document.documentElement);
+  const vals = series.flatMap(s => s.pts.filter(p => p[0] >= now - win && p[1] !== null).map(p => p[1]));
+  if (vals.length < 2) return;
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi - lo < minSpan) { const m = (hi + lo) / 2; lo = m - minSpan / 2; hi = m + minSpan / 2; }
+  const pad = (hi - lo) * 0.1; lo -= pad; hi += pad;
+  if (floor !== null && lo < floor) { hi += floor - lo; lo = floor; }
+  g.strokeStyle = css.getPropertyValue("--line"); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, H - 0.5); g.lineTo(W, H - 0.5); g.stroke();
+  g.fillStyle = css.getPropertyValue("--muted"); g.font = "10px sans-serif";
+  g.fillText(hi.toFixed(dec), 2, 10); g.fillText(lo.toFixed(dec), 2, H - 3);
+  for (const s of series) {
+    g.strokeStyle = css.getPropertyValue(s.color); g.lineWidth = 1.5; g.beginPath();
+    let prev = null;
+    for (const [t, v] of s.pts) {
+      if (t < now - win || v === null) { prev = null; continue; }
+      const x = W - (now - t) / win * W, y = H - (v - lo) / (hi - lo) * H;
+      if (!prev || t - prev > 10) g.moveTo(x, y); else g.lineTo(x, y);
+      prev = t;
+    }
+    g.stroke();
+  }
+}
+function renderPower() {
+  const r = pw.info;
+  if (!r) return;
+  const n = r.now;
+  const warn = $("#pwWarn");
+  if (!r.available || !n) {
+    warn.hidden = false; warn.textContent = r.error || "noch keine Messung";
+    return;
+  }
+  const kv = (k, v, sub = "") => `<div class="kv"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  const msgs = [];
+  if (n.throttle_now.length) msgs.push(`<b style="color:var(--bad)">Jetzt: ${esc(n.throttle_now.join(", "))}</b>`);
+  if (n.throttle_past.length) msgs.push(`Seit dem Start aufgetreten: ${esc(n.throttle_past.join(", "))}` +
+    (n.throttle_past.includes("Unterspannung") ? " – Netzteil oder Kabel zu schwach (Pi 5: 5 V / 5 A empfohlen)." : ""));
+  warn.hidden = !msgs.length;
+  warn.innerHTML = msgs.join("<br>");
+  const avg = (sec, i) => { const p = pw.hist.filter(h => h[0] >= Date.now() / 1000 - sec && h[i] !== null);
+    return p.length ? p.reduce((a, h) => a + h[i], 0) / p.length : null; };
+  const a5 = avg(300, 2), mx = pw.hist.length ? Math.max(...pw.hist.map(h => h[2])) : null;
+  $("#pwStat").innerHTML =
+    kv("Gesamt (geschätzt)", n.total_w.toFixed(2) + " W", "≈ " + (n.total_w / (n.input_v || 5) * 1000).toFixed(0) + " mA an " + (n.input_v || 5).toFixed(2) + " V") +
+    kv("Pi gemessen", n.pi_w.toFixed(2) + " W", "Spannungswandler (PMIC)") +
+    kv("Mittel 5 min", a5 !== null ? a5.toFixed(2) + " W" : "–", mx !== null ? "Spitze 1 h: " + mx.toFixed(2) + " W" : "") +
+    kv("CPU", n.cpu_pct !== null ? n.cpu_pct.toFixed(0) + " %" : "–", n.arm_mhz ? n.arm_mhz + " MHz" : "") +
+    kv("Temperatur", n.temp_c !== null ? n.temp_c.toFixed(1) + " °C" : "–", n.fan_rpm !== null ? "Lüfter " + n.fan_rpm + " U/min" : "") +
+    kv("Energie", r.energy_wh.toFixed(1) + " Wh", "seit " + new Date(r.energy_since * 1000).toLocaleString());
+  $("#pwNote").textContent = "Gemessen werden nur die Wandler im Pi. Wandlerverluste, LoRa-HAT und Lüfter sind geschätzt (Annahmen siehe Hilfe → Stromverbrauch).";
+  const bank = Number($("#pwBank").value) || 0;
+  const wh = bank * 3.7 / 1000 * 0.85;
+  const hrs = w => w ? (wh / w) : null;
+  const fmt = h => h === null ? "–" : Math.floor(h) + " h " + String(Math.round((h % 1) * 60)).padStart(2, "0") + " min";
+  $("#pwRun").innerHTML = kv("nutzbar", wh.toFixed(0) + " Wh") +
+    kv("bei aktuell", fmt(hrs(n.total_w)), n.total_w.toFixed(2) + " W") +
+    kv("bei Mittel 5 min", fmt(hrs(a5)), a5 !== null ? a5.toFixed(2) + " W" : "") +
+    kv("bei Spitze", fmt(hrs(mx)), mx !== null ? mx.toFixed(2) + " W" : "");
+  const rows = Object.entries(n.extra).map(([k, w]) => ({ group: "geschätzt", desc: k, v: null, a: null, w }))
+    .concat(n.rails.filter(x => x.w >= 0.001));
+  const bar = w => `<div style="height:6px;border-radius:3px;background:var(--accent);width:${Math.min(100, w / n.total_w * 100).toFixed(1)}%"></div>`;
+  $("#pwRails").innerHTML = "<tr><th>Gruppe</th><th>Verbraucher</th><th>Spannung</th><th>Strom</th><th>Leistung</th><th style='width:25%'></th></tr>" +
+    rows.map(x => `<tr><td>${esc(x.group)}</td><td>${esc(x.desc)}${x.name ? ` <span class="hint">${esc(x.name)}</span>` : ""}</td>` +
+      `<td class="num">${x.v !== null ? x.v.toFixed(2) + " V" : ""}</td><td class="num">${x.a !== null ? (x.a * 1000).toFixed(0) + " mA" : ""}</td>` +
+      `<td class="num">${x.w.toFixed(2)} W</td><td>${bar(x.w)}</td></tr>`).join("");
+  $("#pwProcs").innerHTML = "<tr><th>Prozess</th><th>PID</th><th>CPU (1 Kern = 100 %)</th></tr>" +
+    (n.procs.length ? n.procs.map(p => `<tr><td>${esc(p.name)}</td><td class="num">${p.pid}</td><td class="num">${p.cpu.toFixed(1)} %</td></tr>`).join("")
+      : "<tr><td colspan=3 class='hint'>alles im Leerlauf</td></tr>");
+  const win = Number($("#pwWin").value);
+  lineChart("pwChartW", [{ pts: pw.hist.map(h => [h[0], h[1]]), color: "--muted" }, { pts: pw.hist.map(h => [h[0], h[2]]), color: "--accent" }], win, 1, 0, 1);
+  lineChart("pwChartC", [{ pts: pw.hist.map(h => [h[0], h[4]]), color: "--accent" }], win, 0, 0, 10);
+  lineChart("pwChartT", [{ pts: pw.hist.map(h => [h[0], h[3]]), color: "--accent" }], win, 0, null, 5);
+  $("#pwCW").textContent = n.total_w.toFixed(2) + " W";
+  $("#pwCC").textContent = n.cpu_pct !== null ? n.cpu_pct.toFixed(0) + " %" : "";
+  $("#pwCT").textContent = n.temp_c !== null ? n.temp_c.toFixed(1) + " °C" : "";
+}
+$("#pwWin").onchange = renderPower;
+$("#pwBank").oninput = () => { try { localStorage.setItem("pwBank", $("#pwBank").value); } catch (e) {} renderPower(); };
+try { const b = localStorage.getItem("pwBank"); if (b) $("#pwBank").value = b; } catch (e) {}
+setInterval(() => { if ($("#power").classList.contains("active")) loadPower(); }, 2000);
 
 // ---------------------------------------------------------------- Surf-Pool
 let poolInfo = null, poolLastT = null;

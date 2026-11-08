@@ -30,6 +30,7 @@ import serial
 import moblin
 import pool
 import position
+import power
 import uplink
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -43,6 +44,7 @@ HELP_DOCS = [
     ("gateway", "Gateway", "docs/gateway.md"),
     ("dgps", "DGPS-Test", "tools/dgps/README.md"),
     ("pool", "Surf-Pool", "docs/pool.md"),
+    ("power", "Stromverbrauch", "docs/power.md"),
 ]
 RX_FIELDS = ["band", "id", "seq", "lost", "rssi", "snr", "fix", "sats", "hdop", "lat", "lon", "speed", "course",
              "utc_ms", "battery_mv", "motion_rms", "motion_peak", "tilt", "button"]
@@ -52,6 +54,7 @@ relative = None    # position.Relative
 pi_gnss = None     # position.PiGnss
 pi_log = None      # Aufzeichnung des Pi-GNSS
 pool_mode = None   # pool.Pool (Video-Puffer)
+power_meter = None  # power.Power (Stromverbrauch des Pi)
 DATA_KINDS = ("rx", "pi_gnss")
 DEFAULT_BAND_SH = os.path.expanduser("~/sx1302_hal_rpi5-master/surfcam/band.sh")
 SESSION_RE = re.compile(r"^(\d{6}_\d{6})\s+(\d+) Segmente\s+(\d+) Bytes\s+(\d+) Positionen(\s+\(aktiv\))?")
@@ -463,6 +466,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            if path == "/api/power":
+                since = float(parse_qs(url.query).get("since", ["0"])[0])
+                return self._json(power_meter.info(since))
             if path == "/api/pool":
                 if not pool_mode:
                     return self._json({"state": "ausgeschaltet (--pool-port 0)", "clips": []})
@@ -691,7 +697,7 @@ def main():
                     help="Surf-Pool: TCP-Port für die Fernsteuerung der iPhone-App Moblin (Standard 2345, 0 = aus)")
     args = ap.parse_args()
 
-    global rx_log, relative, pi_gnss, pi_log, pool_mode
+    global rx_log, relative, pi_gnss, pi_log, pool_mode, power_meter
     Handler.band_sh = args.band_sh
     Handler.data_dir = args.data
     rx_log = position.DailyCsv(os.path.join(args.data, "rx"), ["rx_utc"] + RX_FIELDS)
@@ -701,6 +707,8 @@ def main():
                                    ["date", "utc", "time_ms", "lat", "lon", "alt", "fix", "sats", "hdop"])
         pi_gnss = position.PiGnss(args.pi_gnss, args.pi_gnss_rate, relative.on_pi_fix, pi_log)
         pi_gnss.start()
+    power_meter = power.Power()
+    power_meter.start()
     if args.pool_port:
         pool_mode = pool.Pool(os.path.join(args.data, "clips"), port=args.pool_port,
                               on_change=lambda info: events.send("pool", info))

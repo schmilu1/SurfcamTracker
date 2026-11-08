@@ -12,6 +12,7 @@ Webserver auf dem Pi zum Testen: zeigt die Funkpakete des Rovers live an und ste
 | Tracker | nur mit USB: Status; Einstellungen als Formular (mehrere Werte auf einmal, Funkband inkl. Gateway); **Befehle**: jeder AT-Befehl als Button, mit Eingabefeld und Hinweis wo ein Wert nötig ist, „Abfragen“ zeigt den aktuellen Wert, Felder sind mit den aktuellen Werten vorbelegt, Sessions zum Herunterladen/Löschen als Auswahl; Konsole mit der vollständigen Ausgabe (eigener Befehl nur noch aufklappbar) |
 | Log | nur mit USB: Sessions im Flash des Trackers, CSV herunterladen, löschen |
 | Gateway | aktives Funkband, Zustand des Paket-Forwarders, Band umschalten |
+| Strom | [Stromverbrauch](../../docs/power.md) des Pi alle 2 s: Leistung gemessen (PMIC) und geschätzt gesamt, Verlauf 1 h, CPU, Temperatur, Lüfter, Aufteilung nach Wandler, Prozesse, Laufzeit mit Powerbank, Warnung bei Unterspannung |
 | Hilfe | diese README und die READMEs zu Hotspot, Tracker-Firmware, Gateway, DGPS-Test und Surf-Pool, direkt aus dem Repo auf dem Pi (nach `git pull` aktuell, ohne Internet lesbar) |
 
 Die Karte braucht Internet (OpenStreetMap). Ohne Internet funktioniert alles andere weiter.
@@ -37,6 +38,7 @@ Gateway Bridge ─MQTT─► server.py ◄─USB (AT-Befehle, AT+JSON)─ Tracke
 | [position.py](position.py) | GPS des Pi (HAT, `/dev/ttyAMA0`) lesen und wie den Tracker einstellen, Aufzeichnung, Kamerastandort, Differenzkorrektur |
 | [moblin.py](moblin.py) | Surf-Pool: Fernsteuerung der iPhone-App Moblin (WebSocket-Server, Port 2345) |
 | [pool.py](pool.py) | Surf-Pool: ffmpeg als SRT-Empfänger, Ringpuffer im RAM, Clips als MP4 |
+| [power.py](power.py) | Stromverbrauch: `vcgencmd pmic_read_adc` alle 2 s, Verlauf 1 h, Drosselung |
 | [uplink.py](uplink.py) | MQTT-Client (nur Abonnieren), Protobuf-Leser, Decoder für Rover-Pakete Version 1 bis 3 (Version 3: Tastenzähler → Clip im Pool-Modus) |
 | [static/index.html](static/index.html) | Weboberfläche (ohne Build, Leaflet für die Karte) |
 | [surfcam-testgui.service](surfcam-testgui.service) | systemd-Dienst |

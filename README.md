@@ -18,6 +18,7 @@ L76K GNSS, 5 Hz                  SX1302-HAT ─► lora_pkt_fwd ─► ChirpStac
 | [firmware/rover](firmware/rover) | Firmware für den TrackerD: GNSS lesen, Positionen im Flash loggen, per LoRa senden. Mit Unit-Tests und AT-Befehlen. **Funkpaketformat in der README.** |
 | [firmware/l76k_probe](firmware/l76k_probe) | Test-Sketch: erkennt das GNSS-Modul und misst die erreichbare Update-Rate |
 | [docs/pool.md](docs/pool.md) | **Surf-Pool-Modus:** 4K-Stream vom iPhone auf dem Pi puffern, letzte x s als Clip speichern |
+| [docs/power.md](docs/power.md) | Stromverbrauch des Pi: Messung, Annahmen, Laufzeit mit Powerbank |
 | [docs/gateway.md](docs/gateway.md) | Kanalplan und Konfiguration des Gateways (Waveshare SX1302 HAT), Empfang prüfen |
 | [docs/hardware](docs/hardware) | Schaltplan, Layout und Bestückungsplan TrackerD v1.2 (Dragino) |
 | [pi/testgui](pi/testgui) | **Test-GUI auf dem Pi** (Port 8080): Live-Daten, Tracker per USB einstellen, Log herunterladen, Funkband umschalten |
