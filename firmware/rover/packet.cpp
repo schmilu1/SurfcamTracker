@@ -124,4 +124,18 @@ uint32_t minTxSpacingMs(uint32_t airtimeUs, uint16_t dutyPermille) {
   return (uint32_t)((us + 999) / 1000);
 }
 
+uint32_t txPeriodEpochs(uint32_t minIntervalMs, uint32_t epochMs, uint8_t slots) {
+  if (epochMs == 0) return 1;
+  uint32_t n = (minIntervalMs + epochMs - 1) / epochMs;
+  if (n < slots) n = slots;
+  return n < 1 ? 1 : n;
+}
+
+bool isTxEpoch(uint32_t timeMs, uint32_t epochMs, uint32_t periodEpochs, uint8_t slot) {
+  if (timeMs >= kMsPerDay || epochMs == 0 || periodEpochs == 0) return false;
+  // runden: das Modul meldet Zeiten wie 12:00:00.100, aber zur Sicherheit auch 12:00:00.099
+  const uint32_t idx = (timeMs + epochMs / 2) / epochMs;
+  return idx % periodEpochs == slot % periodEpochs;
+}
+
 }  // namespace surfcam

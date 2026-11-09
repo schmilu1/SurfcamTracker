@@ -36,6 +36,34 @@ Band B liefert dreimal so viele Positionen, hat aber ≈ 10 dB weniger Reserve. 
 
 Der automatische Sendeabstand (`AT+TXINT=0`) ergibt sich aus Duty Cycle, Paketlänge, SF, Bandbreite und GNSS-Rate: kürzester erlaubter Abstand, aufgerundet auf ganze GNSS-Epochen. Wird z. B. in Band B die Leistung über 7 dBm gestellt, gilt 1 % Duty Cycle und der Abstand steigt automatisch auf ≈ 2,6 s.
 
+## Mehrere Tracker (Zeitschlitze)
+
+Ab Firmware 0.6.0. Das Gateway empfängt auf dem 250-kHz-Kanal nur ein Paket gleichzeitig. Senden zwei Tracker zur selben Zeit, gehen beide Pakete verloren. Deshalb sendet jeder Tracker nur in seinem eigenen Zeitschlitz. Die Uhr dafür ist die UTC-Zeit des GNSS, die bei allen Trackern gleich ist.
+
+- Eine Periode besteht aus ganzen GNSS-Epochen (10 Hz: 100 ms). Jeder Schlitz ist eine Epoche lang. Ein Paket dauert 29 ms, der Rest ist Reserve für Laufzeitunterschiede.
+- Ein Tracker sendet bei der Epoche mit `(UTC / Epoche) % Periode == ID % Anzahl`.
+- Die Periode ist der Sendeabstand: kürzester erlaubter Abstand (Duty Cycle oder `AT+TXINT`), aufgerundet auf ganze Epochen, und mindestens so viele Epochen wie Tracker.
+
+| 10 Hz GNSS | 1 Tracker | 2 Tracker | 3 Tracker | 4 Tracker |
+|---|---|---|---|---|
+| Band A | 300 ms | 300 ms | 300 ms | 400 ms |
+| Band B | 100 ms | 200 ms | 300 ms | 400 ms |
+
+In Band A kosten bis zu drei Tracker also keine Senderate. Der Duty Cycle gilt pro Gerät.
+
+**Einrichten**, z. B. für zwei Tracker:
+
+| | Tracker 1 | Tracker 2 |
+|---|---|---|
+| `AT+ID` | 1 | 2 |
+| `AT+SLOTS` | 2 | 2 |
+
+Band, GNSS-Rate, SF und `AT+SLOTS` müssen bei allen gleich sein, sonst stimmen die Perioden nicht überein. Mit `AT+SLOTS=1` (Standard) gibt es nur einen Schlitz. Der Tracker sendet dann wie früher so oft wie erlaubt, jetzt aber im Takt der UTC-Zeit.
+
+**Ohne Fix** gibt es keine Zeitschlitze. Der Tracker sendet dann alle 2 s ein Lebenszeichen. Zusammenstösse sind dabei selten (2 × 29 ms in 2 s) und ohne Fix ohnehin unkritisch.
+
+`ATI` zeigt die Zeile `Zeitschlitze 2, eigener Schlitz 1, Periode 300 ms, Schlitz 100 ms, Paket 29 ms`. Eine Warnung erscheint, wenn ein Paket nicht mehr in einen Schlitz passt, z. B. bei SF9 oder höher mit 10 Hz GNSS-Rate. Prüfen am Pi: In den empfangenen Paketen ist `utc_ms % Periode` bei jedem Tracker konstant und bei allen verschieden.
+
 ## Paketformat (für den Empfänger)
 
 22 Bytes (Version 3), Big Endian. Das erste Byte ist der LoRaWAN-MHDR für „Proprietary“ (`0xE0`). ChirpStack verwirft solche Frames, der Pi-Dienst liest sie roh aus dem MQTT-Uplink des Gateway Bridge.
@@ -102,6 +130,7 @@ Unter 3,3 V Akkuspannung (10 s lang) schaltet sich der Rover selbst ab.
 | `ATI` / `AT+INFO` | Status: GNSS-Rate (Soll/gemessen), Fix, Funk, Duty Cycle, Akku, Log | |
 | `AT+JSON` | Einstellungen und Status als eine JSON-Zeile (für das Test-GUI auf dem Pi) | |
 | `AT+ID=<0..31>` | Geräte-ID im Paket | 1 |
+| `AT+SLOTS=<1..8>` | Anzahl Tracker auf demselben Kanal (Zeitschlitze), eigener Schlitz = ID % Anzahl, siehe [Mehrere Tracker](#mehrere-tracker-zeitschlitze) | 1 |
 | `AT+RATE=<1\|2\|4\|5\|10>` | GNSS-Rate in Hz (wirkt sofort) | 10 |
 | `AT+BAND=<A\|B>` | Funkprofil: setzt Frequenz und Sendeleistung, siehe [Funkbänder](#funkbänder) | A |
 | `AT+TXINT=<ms>` | Sendeabstand bei Fix; 0 = automatisch (kürzester erlaubter Abstand) | 0 |
@@ -214,4 +243,4 @@ Loop ─► NMEA lesen ─► Epoche (RMC+GGA mit gleicher Zeit)
 - Stromverbrauch: grob geschätzt 50–70 mA im Betrieb (ESP32 bei 80 MHz, GNSS, LoRa mit 10 % Sendezeit). Laufzeit daher vor dem ersten Einsatz messen.
 - Akkuspannung: Teiler 100k/470k laut Schaltplan, nicht kalibriert.
 
-Die Firmware ist **noch nicht auf dem Gerät getestet**. Geprüft sind: Build mit `platformio/espressif32@8.0.0` (Arduino-ESP32 3.3.12) und RadioLib 7.8.1 ohne Warnungen (RAM 8,4 %, Flash 35,6 %) sowie die Unit-Tests (Stand 0.5.0: 30/30). Beim Start vergleicht die Firmware ihre Sendezeit-Berechnung mit `getTimeOnAir()` von RadioLib und warnt bei mehr als 5 % Abweichung.
+Die Firmware ist **noch nicht auf dem Gerät getestet**. Geprüft sind: Build mit `platformio/espressif32@8.0.0` (Arduino-ESP32 3.3.12) und RadioLib 7.8.1 ohne Warnungen (RAM 8,4 %, Flash 35,6 %) sowie die Unit-Tests (Stand 0.6.0: 33/33). Beim Start vergleicht die Firmware ihre Sendezeit-Berechnung mit `getTimeOnAir()` von RadioLib und warnt bei mehr als 5 % Abweichung.

@@ -270,6 +270,9 @@ nav { overflow-x: auto; }
           <select data-set="bw" data-cmd="AT+BW"><option value="125000">125 kHz</option><option value="250000">250 kHz</option><option value="500000">500 kHz</option></select></label></div>
         <div><label>Geräte-ID
           <input type="number" min="0" max="31" data-set="id" data-cmd="AT+ID"></label></div>
+        <div><label>Anzahl Tracker
+          <input type="number" min="1" max="8" data-set="slots" data-cmd="AT+SLOTS"></label>
+          <div class="hint">Zeitschlitze, bei allen Trackern gleich (Firmware ab 0.6.0)</div></div>
         <div><label>Lograte
           <select data-set="lograte" data-cmd="AT+LOGRATE"><option value="0">aus</option><option>1</option><option>2</option><option>4</option><option>5</option><option>10</option></select></label>
           <div class="hint">Hz</div></div>
@@ -587,6 +590,7 @@ const CMDS = [
     { cmd: "AT+SF", label: "Spreading Factor", set: "sf", input: sel(7, 8, 9, 10, 11, 12), hint: "Gateway empfängt nur SF7", query: true },
     { cmd: "AT+BW", label: "Bandbreite", set: "bw", input: sel(["125000", "125 kHz"], ["250000", "250 kHz"], ["500000", "500 kHz"]), hint: "Gateway erwartet 250 kHz", query: true },
     { cmd: "AT+ID", label: "Geräte-ID", set: "id", input: num(0, 31), hint: "0 bis 31, steht in jedem Funkpaket", query: true },
+    { cmd: "AT+SLOTS", label: "Anzahl Tracker", set: "slots", input: num(1, 8), hint: "Zeitschlitze: bei allen Trackern gleich einstellen, IDs 1, 2, … vergeben (Firmware ab 0.6.0)", query: true },
   ]],
   ["GNSS", [
     { cmd: "AT+RATE", label: "GNSS-Rate", set: "rate", input: sel(1, 2, 4, 5, 10), hint: "Positionen pro Sekunde (Hz)", query: true },

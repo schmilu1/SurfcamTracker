@@ -208,27 +208,38 @@ bool applyRadioSettings() {
   return radio.begin(settings.freqHz, settings.sf, settings.bwHz, settings.txPowerDbm);
 }
 
-uint32_t txIntervalMs() {
-  if (settings.txIntervalMs != 0) return settings.txIntervalMs;
-  // Automatisch: kleinster Abstand, den der Duty Cycle erlaubt, auf ganze GNSS-Epochen aufgerundet
-  // (z. B. 10 Hz: 258 ms -> 300 ms bei Band A, 26 ms -> 100 ms bei Band B)
-  const uint32_t epoch = 1000 / gnss.rateHz();
+static uint32_t epochMs() { return 1000 / gnss.rateHz(); }
+
+uint8_t txSlot() { return settings.deviceId % settings.txSlots; }
+
+uint32_t txPeriodEpochs() {
+  // AT+TXINT (0 = automatisch), aber nie kürzer als der Duty Cycle erlaubt
   const uint32_t minMs = radio.minSpacingMs(surfcam::kPacketSize);
-  return (minMs + epoch - 1) / epoch * epoch;
+  const uint32_t want = settings.txIntervalMs > minMs ? settings.txIntervalMs : minMs;
+  return surfcam::txPeriodEpochs(want, epochMs(), settings.txSlots);
 }
+
+// Sendeabstand bei Fix: ganze GNSS-Epochen, mindestens eine pro Zeitschlitz
+// (z. B. 10 Hz: 258 ms -> 300 ms bei Band A, 26 ms -> 100 ms bei Band B, mit 2 Schlitzen 200 ms)
+uint32_t txIntervalMs() { return txPeriodEpochs() * epochMs(); }
 
 static void maybeSend() {
   const uint32_t now = millis();
   const bool valid = fixValid();
-  uint32_t interval = valid ? txIntervalMs() : timing::NO_FIX_TX_INTERVAL_MS;
-  // Neue Fixes kommen nur alle 1/Rate s. Ohne Toleranz würde der Sendezeitpunkt bis zu einer
-  // Epoche hinter dem Ziel liegen (bei 10 Hz und 300 ms also 300-400 ms statt gleichmässig 300 ms).
-  if (valid) {
-    const uint32_t halfEpoch = 500 / gnss.rateHz();
-    interval = interval > halfEpoch ? interval - halfEpoch : 0;
+  if (valid && g_fix.timeMs != surfcam::kTimeUnknown) {
+    // Zeitschlitz: nur bei der eigenen Epoche senden (UTC aus dem GNSS, für alle Tracker gleich)
+    if (!g_newFix) return;
+    if (!surfcam::isTxEpoch(g_fix.timeMs, epochMs(), txPeriodEpochs(), txSlot())) return;
+    if (now - gnss.lastEpochMs() > epochMs() / 2) {  // zu spät, würde in den nächsten Schlitz rutschen
+      g_newFix = false;
+      return;
+    }
+  } else {
+    // ohne Fix (oder ohne UTC): Lebenszeichen alle 2 s, ohne Zeitschlitz
+    uint32_t interval = valid ? txIntervalMs() : timing::NO_FIX_TX_INTERVAL_MS;
+    if (g_txEver && now - g_lastTxMs < interval) return;
+    if (valid && !g_newFix) return;  // keine Position doppelt senden
   }
-  if (g_txEver && now - g_lastTxMs < interval) return;
-  if (valid && !g_newFix) return;  // keine Position doppelt senden
   if (!radio.canSend()) return;    // Duty Cycle
 
   surfcam::Position p;
@@ -322,6 +333,13 @@ void printStatus(Print& out) {
              (unsigned long)txIntervalMs(), settings.txIntervalMs ? "fest" : "auto",
              1000.0f / txIntervalMs(), (unsigned long)radio.minSpacingMs(surfcam::kPacketSize), duty,
              radio.averageDutyPercent());
+  {
+    const uint32_t airMs = (radio.airtimeUs(surfcam::kPacketSize) + 999) / 1000;
+    out.printf("       Zeitschlitze %u, eigener Schlitz %u (ID %% Schlitze), Periode %lu ms, Schlitz %lu ms, Paket %lu ms%s\r\n",
+               settings.txSlots, txSlot(), (unsigned long)txIntervalMs(), (unsigned long)epochMs(),
+               (unsigned long)airMs,
+               settings.txSlots > 1 && airMs + 20 > epochMs() ? " WARNUNG: Paket zu lang für den Schlitz (GNSS-Rate erhöhen oder SF senken)" : "");
+  }
   if (motion.ok()) {
     const MotionSummary m = motion.peekLive();
     out.printf("Bewegung: LIS3DH 0x%02X, %lu Messwerte, FIFO-Überläufe %lu, aktuell %.2f g dynamisch, Spitze %.2f g, Neigung %u°\r\n",
@@ -341,9 +359,9 @@ void printJson(Print& out) {
   const BandProfile* band = currentBand();
   const surfcam::NmeaStats& s = gnss.stats();
   out.printf("{\"fw\":\"%s\",\"uptime_s\":%lu,", ROVER_FW_VERSION, (unsigned long)(millis() / 1000));
-  out.printf("\"settings\":{\"id\":%u,\"rate\":%u,\"txint\":%u,\"txp\":%d,\"freq\":%lu,\"sf\":%u,"
+  out.printf("\"settings\":{\"id\":%u,\"slots\":%u,\"rate\":%u,\"txint\":%u,\"txp\":%d,\"freq\":%lu,\"sf\":%u,"
              "\"bw\":%lu,\"led\":%u,\"lograte\":%u,\"logmotion\":%u,\"band\":\"%c\"},",
-             settings.deviceId, settings.gnssHz, settings.txIntervalMs, settings.txPowerDbm,
+             settings.deviceId, settings.txSlots, settings.gnssHz, settings.txIntervalMs, settings.txPowerDbm,
              (unsigned long)settings.freqHz, settings.sf, (unsigned long)settings.bwHz, settings.leds ? 1 : 0,
              settings.logHz, settings.logMotion ? 1 : 0, band ? band->name : '-');
   out.printf("\"gnss\":{\"alive\":%s,\"hz\":%.1f,\"fix\":%s,\"quality\":%u,\"sats\":%u,\"hdop\":%.1f,",
@@ -355,10 +373,10 @@ void printJson(Print& out) {
              g_fix.latE7 / 1e7, g_fix.lonE7 / 1e7, g_fix.speedCms / 100.0, g_fix.courseCdeg / 100.0,
              g_haveFix && g_fix.timeMs != surfcam::kTimeUnknown ? (long)g_fix.timeMs : -1L,
              (unsigned long)s.sentences, (unsigned long)s.checksumErrors);
-  out.printf("\"radio\":{\"ok\":%s,\"sent\":%lu,\"failed\":%lu,\"interval_ms\":%lu,\"min_ms\":%lu,"
+  out.printf("\"radio\":{\"ok\":%s,\"sent\":%lu,\"failed\":%lu,\"interval_ms\":%lu,\"min_ms\":%lu,\"slot\":%u,"
              "\"duty_permille\":%u,\"avg_duty\":%.2f},",
              radio.ok() ? "true" : "false", (unsigned long)radio.txCount(), (unsigned long)radio.txFailed(),
-             (unsigned long)txIntervalMs(), (unsigned long)radio.minSpacingMs(surfcam::kPacketSize),
+             (unsigned long)txIntervalMs(), (unsigned long)radio.minSpacingMs(surfcam::kPacketSize), txSlot(),
              radio.dutyPermille(), radio.averageDutyPercent());
   const MotionSummary m = motion.peekLive();
   out.printf("\"motion\":{\"ok\":%s,\"rms_g\":%.2f,\"peak_g\":%.2f,\"tilt\":%u},",

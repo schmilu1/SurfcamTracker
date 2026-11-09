@@ -18,6 +18,8 @@ uint16_t batteryMv();
 bool buttonPressed();              // IO0 LOW oder IO25 HIGH
 const BandProfile* currentBand();  // passendes AT+BAND-Profil oder nullptr
 uint32_t txIntervalMs();           // wirksamer Ziel-Sendeabstand bei Fix (auto oder fest)
+uint32_t txPeriodEpochs();         // Sendeabstand in GNSS-Epochen
+uint8_t txSlot();                  // eigener Zeitschlitz (ID % AT+SLOTS)
 void printStatus(Print& out);
 void printJson(Print& out);         // Einstellungen und Status als JSON-Zeile (AT+JSON)
 bool applyRadioSettings();

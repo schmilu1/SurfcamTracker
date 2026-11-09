@@ -7,6 +7,7 @@
 
 struct Settings {
   uint8_t deviceId = defaults::DEVICE_ID;
+  uint8_t txSlots = defaults::TX_SLOTS;  // 1..8, eigener Schlitz = deviceId % txSlots
   uint8_t gnssHz = defaults::GNSS_HZ;
   uint16_t txIntervalMs = defaults::TX_INTERVAL_MS;
   int8_t txPowerDbm = defaults::TX_POWER_DBM;

@@ -84,4 +84,16 @@ constexpr int8_t kMaxDbmNoDutyBand = 7;
 // Mindestabstand zwischen zwei Sendungen, damit der Duty Cycle eingehalten wird.
 uint32_t minTxSpacingMs(uint32_t airtimeUs, uint16_t dutyPermille);
 
+// Zeitschlitze (mehrere Tracker auf demselben Kanal, Firmware ab 0.6.0):
+// Gesendet wird nur bei GNSS-Epochen, deren UTC-Zeit in den eigenen Schlitz fällt. Eine Periode hat
+// periodEpochs Epochen; Tracker mit Schlitz s sendet bei der Epoche mit Index (UTC / Epoche) % Periode == s.
+// Jeder Schlitz ist eine Epoche lang (10 Hz: 100 ms, ein Paket dauert ca. 28 ms).
+// Alle Tracker brauchen dieselbe Periode, also gleiche GNSS-Rate, gleiches Band und gleiche Anzahl Schlitze.
+
+// Periode in Epochen: mindestens so lang wie minIntervalMs (Duty Cycle / AT+TXINT) und mindestens slots Epochen.
+uint32_t txPeriodEpochs(uint32_t minIntervalMs, uint32_t epochMs, uint8_t slots);
+
+// true, wenn die Epoche mit UTC-Zeit timeMs (ms seit Mitternacht) im Schlitz slot liegt.
+bool isTxEpoch(uint32_t timeMs, uint32_t epochMs, uint32_t periodEpochs, uint8_t slot);
+
 }  // namespace surfcam

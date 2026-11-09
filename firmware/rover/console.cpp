@@ -30,6 +30,7 @@ void printHelp() {
       "ATI / AT+INFO    Status\r\n"
       "AT+JSON          Einstellungen und Status als JSON-Zeile\r\n"
       "AT+ID=<0..31>    Geräte-ID im Funkpaket\r\n"
+      "AT+SLOTS=<1..8>  Anzahl Tracker auf dem Kanal (Zeitschlitze, eigener = ID % Anzahl)\r\n"
       "AT+RATE=<Hz>     GNSS-Rate: 1, 2, 4, 5, 10\r\n"
       "AT+BAND=<A|B>    Funkprofil: A 869.525 MHz/17 dBm (10 %), B 869.85 MHz/7 dBm (ohne Grenze)\r\n"
       "AT+TXINT=<ms>    Sendeabstand bei Fix, 0 = automatisch (so schnell wie erlaubt)\r\n"
@@ -114,6 +115,14 @@ void handle(char* cmd) {
     if (numericSetting("ID", val, query, settings.deviceId, 0, 31, v)) {
       settings.deviceId = (uint8_t)v;
       settings.save();
+      ok();
+    }
+  } else if (strcmp(cmd, "AT+SLOTS") == 0) {
+    if (numericSetting("SLOTS", val, query, settings.txSlots, 1, 8, v)) {
+      settings.txSlots = (uint8_t)v;
+      settings.save();
+      Serial.printf("%u Zeitschlitze, eigener Schlitz %u, Sendeabstand %lu ms\r\n", settings.txSlots, txSlot(),
+                    (unsigned long)txIntervalMs());
       ok();
     }
   } else if (strcmp(cmd, "AT+RATE") == 0) {

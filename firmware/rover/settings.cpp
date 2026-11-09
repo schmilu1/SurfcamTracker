@@ -10,6 +10,8 @@ void Settings::load() {
   Preferences p;
   if (!p.begin(kNamespace, true)) return;  // noch nichts gespeichert -> Standardwerte
   deviceId = p.getUChar("id", deviceId);
+  txSlots = p.getUChar("slots", txSlots);
+  if (txSlots < 1 || txSlots > 8) txSlots = 1;
   gnssHz = p.getUChar("gnssHz", gnssHz);
   txIntervalMs = p.getUShort("txIntv", txIntervalMs);  // neuer Schlüssel: 0 = automatisch
   txPowerDbm = p.getChar("txPow", txPowerDbm);
@@ -26,6 +28,7 @@ void Settings::save() const {
   Preferences p;
   if (!p.begin(kNamespace, false)) return;
   p.putUChar("id", deviceId);
+  p.putUChar("slots", txSlots);
   p.putUChar("gnssHz", gnssHz);
   p.putUShort("txIntv", txIntervalMs);
   p.putChar("txPow", txPowerDbm);

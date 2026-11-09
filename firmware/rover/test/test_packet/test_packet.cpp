@@ -206,6 +206,46 @@ void test_min_spacing() {
   TEST_ASSERT_EQUAL_UINT32(26, minTxSpacingMs(25728, 1000));   // keine Grenze
 }
 
+void test_tx_period() {
+  // Band A, 10 Hz: Duty Cycle 258 ms -> 3 Epochen (300 ms), auch mit 2 oder 3 Schlitzen
+  TEST_ASSERT_EQUAL_UINT32(3, txPeriodEpochs(258, 100, 1));
+  TEST_ASSERT_EQUAL_UINT32(3, txPeriodEpochs(258, 100, 2));
+  TEST_ASSERT_EQUAL_UINT32(3, txPeriodEpochs(258, 100, 3));
+  TEST_ASSERT_EQUAL_UINT32(4, txPeriodEpochs(258, 100, 4));
+  // Band B: 26 ms -> 1 Epoche, mit 2 Schlitzen 2 Epochen
+  TEST_ASSERT_EQUAL_UINT32(1, txPeriodEpochs(26, 100, 1));
+  TEST_ASSERT_EQUAL_UINT32(2, txPeriodEpochs(26, 100, 2));
+  // 1 Hz: eine Epoche reicht für den Duty Cycle
+  TEST_ASSERT_EQUAL_UINT32(1, txPeriodEpochs(258, 1000, 1));
+  TEST_ASSERT_EQUAL_UINT32(2, txPeriodEpochs(258, 1000, 2));
+  TEST_ASSERT_EQUAL_UINT32(1, txPeriodEpochs(0, 0, 1));
+}
+
+void test_tx_slots_disjoint() {
+  // Zwei Tracker (ID 1 und 2, 2 Schlitze, Band A 10 Hz): nie dieselbe Epoche, je einmal pro 300 ms
+  const uint32_t period = txPeriodEpochs(258, 100, 2);
+  int n1 = 0, n2 = 0;
+  for (uint32_t t = 43200000; t < 43200000 + 60000; t += 100) {
+    const bool a = isTxEpoch(t, 100, period, 1 % 2);
+    const bool b = isTxEpoch(t, 100, period, 2 % 2);
+    TEST_ASSERT_FALSE(a && b);
+    n1 += a;
+    n2 += b;
+  }
+  TEST_ASSERT_EQUAL_INT(200, n1);
+  TEST_ASSERT_EQUAL_INT(200, n2);
+}
+
+void test_tx_epoch_rounding_and_invalid() {
+  TEST_ASSERT_TRUE(isTxEpoch(300, 100, 3, 0));
+  TEST_ASSERT_TRUE(isTxEpoch(299, 100, 3, 0));   // Zeit knapp vor der Epochengrenze
+  TEST_ASSERT_TRUE(isTxEpoch(400, 100, 3, 1));
+  TEST_ASSERT_FALSE(isTxEpoch(400, 100, 3, 0));
+  TEST_ASSERT_FALSE(isTxEpoch(0xFFFFFFFFUL, 100, 3, 0));  // Zeit unbekannt
+  TEST_ASSERT_FALSE(isTxEpoch(kMsPerDay, 100, 3, 0));
+  TEST_ASSERT_FALSE(isTxEpoch(300, 0, 3, 0));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_size_and_header);
@@ -221,5 +261,8 @@ int main(int, char**) {
   RUN_TEST(test_airtime);
   RUN_TEST(test_duty_cycle_band);
   RUN_TEST(test_min_spacing);
+  RUN_TEST(test_tx_period);
+  RUN_TEST(test_tx_slots_disjoint);
+  RUN_TEST(test_tx_epoch_rounding_and_invalid);
   return UNITY_END();
 }
